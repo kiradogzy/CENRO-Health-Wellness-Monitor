@@ -86,7 +86,7 @@ cenro_dc_health_and_wellness_monitoring_system/
     └── users.html
 ```
 
-📄 License
+## 📄 License
 This system was developed for internal government use by CENRO Don Carlos, DENR. All rights reserved.
 
 ---
