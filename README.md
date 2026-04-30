@@ -89,4 +89,6 @@ cenro_dc_health_and_wellness_monitoring_system/
 📄 License
 This system was developed for internal government use by CENRO Don Carlos, DENR. All rights reserved.
 
-**Developed by:** Edgest Yaneigh N. Agbayani
+---
+
+*Developed by: Edgest Yaneigh N. Agbayani*
