@@ -125,6 +125,45 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('login'))
 
+@app.route('/users', methods=['GET', 'POST'])
+@admin_required
+def manage_users():
+    db = get_db()
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        role = request.form.get('role', 'viewer')
+        
+        if not username or not password:
+            flash('Username and password are required.', 'danger')
+        elif re.search(r'[^\x00-\x7FñÑ]', username) or re.search(r'[^\x00-\x7FñÑ]', password):
+            flash('Emojis or unsupported characters are not allowed.', 'danger')
+        else:
+            existing_user = db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+            if existing_user:
+                flash('Username already exists.', 'danger')
+            else:
+                db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+                           (username, generate_password_hash(password), role))
+                db.commit()
+                flash('User created successfully!', 'success')
+        return redirect(url_for('manage_users'))
+
+    users = db.execute('SELECT id, username, role FROM users').fetchall()
+    return render_template('users.html', users=users)
+
+@app.route('/delete_user/<int:id>', methods=['POST'])
+@admin_required
+def delete_user(id):
+    if id == session.get('user_id'):
+        flash('You cannot delete your own account!', 'danger')
+    else:
+        db = get_db()
+        db.execute('DELETE FROM users WHERE id = ?', (id,))
+        db.commit()
+        flash('User deleted successfully.', 'success')
+    return redirect(url_for('manage_users'))
+
 @app.route('/')
 @login_required
 def dashboard():

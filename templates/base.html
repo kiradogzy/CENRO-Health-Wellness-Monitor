@@ -50,6 +50,14 @@
                     <span class="nav-text">Reports</span>
                 </a>
             </li>
+            {% if session.role == 'admin' %}
+            <li class="nav-item">
+                <a href="{{ url_for('manage_users') }}" class="{{ 'active' if request.endpoint == 'manage_users' else '' }}">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <span class="nav-text">Users</span>
+                </a>
+            </li>
+            {% endif %}
         </ul>
     </aside>
 
