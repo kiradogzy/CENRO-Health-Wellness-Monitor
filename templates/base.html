@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Health Monitor{% endblock %} - CENRO Don Carlos</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.2">
 </head>
+
 <body>
 
     <aside class="sidebar" id="mainSidebar">
@@ -21,8 +23,8 @@
         </script>
         <div class="sidebar-header">
             <div class="sidebar-brand">
-                <i class="fa-solid fa-leaf"></i>
-                <span>CENRO<br>Health Monitor</span>
+                <img src="{{ url_for('static', filename='img/denr_logo.png') }}" alt="DENR Logo" style="height: 36px; width: auto;">
+                <span>CENRO Don Carlos<br>Health Monitor</span>
             </div>
         </div>
         <ul class="nav-links">
@@ -50,9 +52,10 @@
                     <span class="nav-text">Reports</span>
                 </a>
             </li>
-            {% if session.role == 'admin' %}
+            {% if session.role == 'super_admin' %}
             <li class="nav-item">
-                <a href="{{ url_for('manage_users') }}" class="{{ 'active' if request.endpoint == 'manage_users' else '' }}">
+                <a href="{{ url_for('manage_users') }}"
+                    class="{{ 'active' if request.endpoint == 'manage_users' else '' }}">
                     <i class="fa-solid fa-user-gear"></i>
                     <span class="nav-text">Users</span>
                 </a>
@@ -62,24 +65,40 @@
     </aside>
 
     <main class="main-content">
-        <header class="page-header">
+        <header class="page-header" style="position: relative;">
             <div style="display: flex; align-items: center; gap: 16px;">
-                <button id="sidebarToggle" class="btn" style="background-color: transparent; color: var(--text-main); font-size: 1.5rem; padding: 4px 8px; box-shadow: none;">
+                <button id="sidebarToggle" class="btn"
+                    style="background-color: transparent; color: var(--text-main); font-size: 1.5rem; padding: 4px 8px; box-shadow: none;">
                     <i class="fa-solid fa-bars"></i>
                 </button>
                 <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
             </div>
+
+            {% if request.endpoint == 'dashboard' %}
+            <div
+                style="position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center;">
+                <img src="{{ url_for('static', filename='img/denr_logo.png') }}" alt="DENR Logo"
+                    style="height: 50px; width: auto;">
+            </div>
+            {% endif %}
+
             <div class="user-profile">
                 {% if session.username %}
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <div style="text-align: right;">
-                        <span style="display: block; font-weight: 600; font-size: 0.95rem;">{{ session.username | title }}</span>
-                        <span style="display: block; font-size: 0.8rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px;">{{ session.role }}</span>
+                        <span style="display: block; font-weight: 600; font-size: 0.95rem;">{{ session.username | title
+                            }}</span>
+                        <span
+                            style="display: block; font-size: 0.8rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px;">{{
+                            session.role }}</span>
                     </div>
-                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--denr-gold); color: var(--denr-green-dark); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">
+                    <div
+                        style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--denr-gold); color: var(--denr-green-dark); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">
                         {{ session.username[0] | upper }}
                     </div>
-                    <a href="{{ url_for('logout') }}" class="btn" style="background-color: #FEE2E2; color: #B91C1C; padding: 8px 12px; margin-left: 8px;" title="Logout">
+                    <a href="{{ url_for('logout') }}" class="btn"
+                        style="background-color: #FEE2E2; color: #B91C1C; padding: 8px 12px; margin-left: 8px;"
+                        title="Logout">
                         <i class="fa-solid fa-right-from-bracket"></i>
                     </a>
                 </div>
@@ -88,22 +107,22 @@
         </header>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">
-                            {% if category == 'success' %}
-                            <i class="fa-solid fa-circle-check"></i>
-                            {% elif category == 'danger' %}
-                            <i class="fa-solid fa-circle-exclamation"></i>
-                            {% else %}
-                            <i class="fa-solid fa-circle-info"></i>
-                            {% endif %}
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+                {% if category == 'success' %}
+                <i class="fa-solid fa-circle-check"></i>
+                {% elif category == 'danger' %}
+                <i class="fa-solid fa-circle-exclamation"></i>
+                {% else %}
+                <i class="fa-solid fa-circle-info"></i>
+                {% endif %}
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
         {% block content %}{% endblock %}
@@ -111,7 +130,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
+        document.addEventListener("DOMContentLoaded", function () {
             const alerts = document.querySelectorAll('.alert');
             alerts.forEach(alert => {
                 setTimeout(() => {
@@ -126,7 +145,7 @@
             const sidebarToggle = document.getElementById('sidebarToggle');
 
             if (sidebarToggle) {
-                sidebarToggle.addEventListener('click', function() {
+                sidebarToggle.addEventListener('click', function () {
                     sidebar.classList.toggle('collapsed');
                     // Save state for next visit
                     localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
@@ -136,4 +155,5 @@
     </script>
     {% block scripts %}{% endblock %}
 </body>
+
 </html>

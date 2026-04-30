@@ -19,13 +19,39 @@
             <p>{{ total_records }}</p>
         </div>
     </div>
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: #F57F17; background-color: rgba(245, 127, 23, 0.1);"><i
+                class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="stat-details">
+            <h3>Elevated BP Cases</h3>
+            <p>{{ elevated_bp_cases }}</p>
+        </div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-icon" style="color: #1976D2; background-color: rgba(25, 118, 210, 0.1);"><i
+                class="fa-solid fa-calendar-check"></i></div>
+        <div class="stat-details">
+            <h3>Checkups This Month</h3>
+            <p>{{ checkups_this_month }}</p>
+        </div>
+    </div>
 </div>
 
-<div class="card" style="margin-bottom: 32px;">
-    <h2><i class="fa-solid fa-chart-line" style="color: var(--denr-green); margin-right: 12px;"></i> Health Trends
-        Overview</h2>
-    <div style="height: 300px; width: 100%; margin-top: 20px;">
-        <canvas id="healthTrendsChart"></canvas>
+<div class="dashboard-charts-grid"
+    style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px;">
+    <div class="card" style="min-width: 0;">
+        <h2><i class="fa-solid fa-chart-line" style="color: var(--denr-green); margin-right: 12px;"></i> Health Trends
+            Overview</h2>
+        <div style="height: 300px; width: 100%; margin-top: 20px; position: relative;">
+            <canvas id="healthTrendsChart"></canvas>
+        </div>
+    </div>
+    <div class="card" style="min-width: 0;">
+        <h2><i class="fa-solid fa-chart-pie" style="color: var(--denr-gold-dark); margin-right: 12px;"></i> Blood Sugar
+            Distribution</h2>
+        <div style="height: 300px; width: 100%; margin-top: 20px; position: relative;">
+            <canvas id="sugarDistributionChart"></canvas>
+        </div>
     </div>
 </div>
 
@@ -65,31 +91,73 @@
 
 {% block scripts %}
 <script>
-    // Placeholder chart data
+    // Safely parse Jinja variables into JS variables to avoid formatter issues
+    const chartLabels = {{ chart_labels | tojson | safe }};
+    const chartDataSys = {{ chart_data_sys | tojson | safe }};
+    const chartDataDia = {{ chart_data_dia | tojson | safe }};
+    const sugarData = {{ sugar_data | tojson | safe }};
+
+    // BP Trends Chart
     const ctx = document.getElementById('healthTrendsChart').getContext('2d');
     new Chart(ctx, {
         type: 'line',
         data: {
-            labels: {{ chart_labels | tojson | safe }},
-        datasets: [{
-            label: 'Avg Systolic BP',
-            data: {{ chart_data | tojson | safe }},
-        borderColor: '#2E7D32',
-        backgroundColor: 'rgba(46, 125, 50, 0.1)',
-        tension: 0.4,
-        fill: true
+            labels: chartLabels,
+            datasets: [
+                {
+                    label: 'Avg Systolic BP',
+                    data: chartDataSys,
+                    borderColor: '#E74C3C',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Avg Diastolic BP',
+                    data: chartDataDia,
+                    borderColor: '#2E7D32',
+                    backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' }
+            },
+            scales: {
+                y: { beginAtZero: false, min: 60 }
+            }
+        }
+    });
+
+    // Sugar Distribution Chart
+    const ctxSugar = document.getElementById('sugarDistributionChart').getContext('2d');
+    new Chart(ctxSugar, {
+        type: 'doughnut',
+        data: {
+            labels: ['Normal (≤99)', 'Prediabetic (100-125)', 'High (≥126)'],
+            datasets: [{
+                data: sugarData,
+                backgroundColor: [
+                    '#2E7D32', // Green
+                    '#FBC02D', // Gold
+                    '#E74C3C'  // Red
+                ],
+                borderWidth: 0
             }]
         },
         options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'top' }
-        },
-        scales: {
-            y: { beginAtZero: false, min: 90 }
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            },
+            cutout: '70%'
         }
-    }
     });
 </script>
 {% endblock %}

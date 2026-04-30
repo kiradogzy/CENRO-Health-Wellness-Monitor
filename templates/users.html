@@ -9,7 +9,7 @@
     <div>
         <div class="card">
             <h2 style="margin-bottom: 10px; color: var(--denr-green-dark); font-size: 1.5rem;">Create New Account</h2>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">Admins can create accounts for other staff or viewers.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">Only the Super Admin can create and manage user accounts.</p>
             
             <form action="{{ url_for('manage_users') }}" method="POST">
                 <div class="form-group">
@@ -26,7 +26,7 @@
                     <label class="form-label">Access Role</label>
                     <select name="role" class="form-control">
                         <option value="viewer">Viewer (Read Only)</option>
-                        <option value="admin">Admin (Full Access)</option>
+                        <option value="admin">Admin (Full Access, No User Mgmt)</option>
                     </select>
                 </div>
                 
@@ -55,8 +55,11 @@
                         <tr>
                             <td><strong>{{ user.username }}</strong></td>
                             <td>
-                                <span class="badge" style="background-color: {{ '#E8F5E9' if user.role == 'admin' else '#F1F5F9' }}; color: {{ '#2E7D32' if user.role == 'admin' else '#64748B' }}; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">
-                                    {{ user.role }}
+                                <span class="badge" style="
+                                        background-color: {% if user.role == 'super_admin' %}#EDE7F6{% elif user.role == 'admin' %}#E8F5E9{% else %}#F1F5F9{% endif %};
+                                        color: {% if user.role == 'super_admin' %}#6A1B9A{% elif user.role == 'admin' %}#2E7D32{% else %}#64748B{% endif %};
+                                        padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">
+                                    {{ user.role | replace('_', ' ') }}
                                 </span>
                             </td>
                             <td>

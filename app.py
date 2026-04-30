@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import io
 from reportlab.lib.pagesizes import letter
@@ -15,12 +15,17 @@ import re
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+app.permanent_session_lifetime = timedelta(minutes=15)
 DATABASE = 'health_monitor.db'
 
 UPLOAD_FOLDER = os.path.join('static', 'uploads', 'evidence')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -67,7 +72,11 @@ def init_db():
         admin = db.execute('SELECT * FROM users WHERE username = "admin"').fetchone()
         if not admin:
             db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-                       ('admin', generate_password_hash('admin123'), 'admin'))
+                       ('admin', generate_password_hash('admin123'), 'super_admin'))
+        else:
+            # Upgrade existing admin to super_admin if not already
+            if admin['role'] == 'admin':
+                db.execute('UPDATE users SET role = "super_admin" WHERE username = "admin"')
         db.commit()
 
 init_db()
@@ -85,8 +94,19 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             flash('Admin access required for this action.', 'danger')
+            return redirect(request.referrer or url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def super_admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        if session.get('role') != 'super_admin':
+            flash('Super Admin access required for this action.', 'danger')
             return redirect(request.referrer or url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
@@ -126,7 +146,7 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/users', methods=['GET', 'POST'])
-@admin_required
+@super_admin_required
 def manage_users():
     db = get_db()
     if request.method == 'POST':
@@ -153,7 +173,7 @@ def manage_users():
     return render_template('users.html', users=users)
 
 @app.route('/delete_user/<int:id>', methods=['POST'])
-@admin_required
+@super_admin_required
 def delete_user(id):
     if id == session.get('user_id'):
         flash('You cannot delete your own account!', 'danger')
@@ -177,10 +197,16 @@ def dashboard():
         ORDER BY h.record_date DESC LIMIT 5
     ''').fetchall()
     
+    current_month = datetime.now().strftime('%Y-%m')
+    checkups_this_month = db.execute('SELECT COUNT(*) FROM health_records WHERE strftime("%Y-%m", record_date) = ?', (current_month,)).fetchone()[0]
+    
+    elevated_bp_cases = db.execute('SELECT COUNT(*) FROM health_records WHERE bp_systolic > 130 OR bp_diastolic > 80').fetchone()[0]
+
     # Get Monthly Averages for chart
     monthly_stats = db.execute('''
         SELECT strftime('%m', record_date) as month, 
-               AVG(bp_systolic) as avg_sys
+               AVG(bp_systolic) as avg_sys,
+               AVG(bp_diastolic) as avg_dia
         FROM health_records
         GROUP BY month
         ORDER BY month
@@ -189,25 +215,42 @@ def dashboard():
     months_map = {'01':'Jan', '02':'Feb', '03':'Mar', '04':'Apr', '05':'May', '06':'Jun', 
                   '07':'Jul', '08':'Aug', '09':'Sep', '10':'Oct', '11':'Nov', '12':'Dec'}
     chart_labels = []
-    chart_data = []
+    chart_data_sys = []
+    chart_data_dia = []
     for row in monthly_stats:
         if row['month']: # Ensure it's not None
             chart_labels.append(months_map.get(row['month'], row['month']))
-            chart_data.append(round(row['avg_sys'], 1))
+            chart_data_sys.append(round(row['avg_sys'], 1) if row['avg_sys'] else 0)
+            chart_data_dia.append(round(row['avg_dia'], 1) if row['avg_dia'] else 0)
             
+    sugar_stats = db.execute('''
+        SELECT 
+            SUM(CASE WHEN sugar_level <= 99 THEN 1 ELSE 0 END) as normal,
+            SUM(CASE WHEN sugar_level > 99 AND sugar_level <= 125 THEN 1 ELSE 0 END) as prediabetic,
+            SUM(CASE WHEN sugar_level > 125 THEN 1 ELSE 0 END) as high
+        FROM health_records
+        WHERE sugar_level IS NOT NULL AND sugar_level > 0
+    ''').fetchone()
+    
+    sugar_data = [sugar_stats['normal'] or 0, sugar_stats['prediabetic'] or 0, sugar_stats['high'] or 0]
+
     return render_template('dashboard.html', 
                            total_personnel=total_personnel, 
                            total_records=total_records,
+                           checkups_this_month=checkups_this_month,
+                           elevated_bp_cases=elevated_bp_cases,
                            recent_records=recent_records,
                            chart_labels=chart_labels,
-                           chart_data=chart_data)
+                           chart_data_sys=chart_data_sys,
+                           chart_data_dia=chart_data_dia,
+                           sugar_data=sugar_data)
 
 @app.route('/personnel', methods=['GET', 'POST'])
 @login_required
 def personnel():
     db = get_db()
     if request.method == 'POST':
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             flash('Admin access required for this action.', 'danger')
             return redirect(url_for('personnel'))
         first_name = request.form.get('first_name', '')
@@ -285,7 +328,7 @@ def delete_personnel(id):
 def records():
     db = get_db()
     if request.method == 'POST':
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             flash('Admin access required for this action.', 'danger')
             return redirect(url_for('records'))
         personnel_id = request.form.get('personnel_id')
@@ -372,26 +415,43 @@ def edit_record(id):
             flash(error, 'danger')
         return redirect(url_for('records'))
         
-    evidence_photo = request.files.get('evidence_photo')
-    evidence_filename = None
-    if evidence_photo and allowed_file(evidence_photo.filename):
-        filename = secure_filename(evidence_photo.filename)
-        unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-        evidence_photo.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
-        evidence_filename = unique_filename
+    # Handle Evidence Photo logic
+    delete_photo_flag = request.form.get('delete_photo') == '1'
+    evidence_photo_file = request.files.get('evidence_photo')
+    
+    # Get current record to check for existing photo
+    record = db.execute('SELECT evidence_photo FROM health_records WHERE id = ?', (id,)).fetchone()
+    current_photo = record['evidence_photo'] if record else ''
+    new_photo_value = current_photo
 
-    if evidence_filename:
-        db.execute('''
-            UPDATE health_records 
-            SET record_date = ?, bp_systolic = ?, bp_diastolic = ?, sugar_level = ?, notes = ?, evidence_photo = ?
-            WHERE id = ?
-        ''', (record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), evidence_filename, id))
-    else:
-        db.execute('''
-            UPDATE health_records 
-            SET record_date = ?, bp_systolic = ?, bp_diastolic = ?, sugar_level = ?, notes = ?
-            WHERE id = ?
-        ''', (record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), id))
+    if evidence_photo_file and allowed_file(evidence_photo_file.filename):
+        # 1. User uploaded a NEW photo
+        # Delete old file if it exists
+        if current_photo:
+            old_path = os.path.join(app.config['UPLOAD_FOLDER'], current_photo)
+            if os.path.exists(old_path):
+                os.remove(old_path)
+        
+        # Save new file
+        filename = secure_filename(evidence_photo_file.filename)
+        unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+        evidence_photo_file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+        new_photo_value = unique_filename
+    elif delete_photo_flag:
+        # 2. User marked photo for deletion and didn't upload a new one
+        if current_photo:
+            old_path = os.path.join(app.config['UPLOAD_FOLDER'], current_photo)
+            if os.path.exists(old_path):
+                os.remove(old_path)
+        new_photo_value = ''
+
+    # Single update statement for all fields
+    db.execute('''
+        UPDATE health_records 
+        SET record_date = ?, bp_systolic = ?, bp_diastolic = ?, sugar_level = ?, notes = ?, evidence_photo = ?
+        WHERE id = ?
+    ''', (record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), new_photo_value, id))
+    
     db.commit()
     flash('Health record updated successfully!', 'success')
     return redirect(url_for('records'))
@@ -400,10 +460,17 @@ def edit_record(id):
 @admin_required
 def delete_record(id):
     db = get_db()
+    # Also delete the evidence photo file from disk if it exists
+    record = db.execute('SELECT evidence_photo FROM health_records WHERE id = ?', (id,)).fetchone()
+    if record and record['evidence_photo']:
+        photo_path = os.path.join(app.config['UPLOAD_FOLDER'], record['evidence_photo'])
+        if os.path.exists(photo_path):
+            os.remove(photo_path)
     db.execute('DELETE FROM health_records WHERE id = ?', (id,))
     db.commit()
     flash('Health record deleted successfully.', 'success')
     return redirect(url_for('records'))
+
 
 @app.route('/reports')
 @login_required

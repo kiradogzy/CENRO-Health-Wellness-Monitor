@@ -110,7 +110,7 @@
     </div>
 </div>
 
-{% if session.role == 'admin' %}
+{% if session.role in ('admin', 'super_admin') %}
 <!-- Edit Modals (outside layout wrappers to prevent z-index/flickering issues) -->
 {% for r in records %}
 <div id="editModal{{ r.id }}" class="modal">
@@ -148,12 +148,24 @@
                     <textarea name="notes" class="form-control" rows="2" oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')">{{ r.notes if r.notes else '' }}</textarea>
                 </div>
 
+                <!-- Hidden flag sent with Save Changes to tell backend to remove the photo -->
+                <input type="hidden" name="delete_photo" id="deletePhotoFlag{{ r.id }}" value="0">
+
                 <div class="form-group">
                     <label class="form-label">Evidence Photo (Optional)</label>
                     {% if r.evidence_photo %}
-                    <div style="margin-bottom: 8px;">
-                        <span style="font-size: 0.85rem; color: var(--text-muted);">Current: </span>
-                        <a href="javascript:void(0)" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')" style="font-size: 0.85rem; color: var(--denr-green);">View Photo</a>
+                    <div id="photoRow{{ r.id }}" style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px; padding: 8px 12px; background-color: #F4F7F5; border-radius: 8px; border: 1px solid var(--border);">
+                        <i class="fa-solid fa-image" style="color: var(--denr-green); font-size: 1rem;"></i>
+                        <a href="javascript:void(0)" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')" style="font-size: 0.85rem; color: var(--denr-green); font-weight: 500; flex: 1;">View Current Photo</a>
+                        <button type="button" class="btn btn-danger"
+                            style="padding: 4px 10px; font-size: 0.78rem; gap: 4px;"
+                            onclick="markPhotoForDeletion('{{ r.id }}')">
+                            <i class="fa-solid fa-trash"></i> Delete Photo
+                        </button>
+                    </div>
+                    <div id="photoDeletedNotice{{ r.id }}" style="display: none; font-size: 0.85rem; color: var(--danger); margin-bottom: 10px; padding: 8px 12px; background-color: #FFF0F0; border-radius: 8px; border: 1px solid #FFCDD2;">
+                        <i class="fa-solid fa-circle-info"></i> Photo will be removed when you click <strong>Save Changes</strong>.
+                        <a href="javascript:void(0)" onclick="undoPhotoDeletion('{{ r.id }}')" style="margin-left: 8px; color: var(--denr-green); font-weight: 600;">Undo</a>
                     </div>
                     {% endif %}
                     <input type="file" name="evidence_photo" accept="image/*" class="form-control" style="padding: 8px 16px;">
@@ -164,8 +176,9 @@
                     <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="document.getElementById('editModal{{ r.id }}').classList.remove('show')">Cancel</button>
                 </div>
             </form>
+
             <form action="{{ url_for('delete_record', id=r.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to completely delete this record? This action cannot be undone.');" style="margin-top: 12px;">
-                <button type="submit" class="btn" style="width: 100%; background-color: #FFF0F0; color: var(--danger); border: 1px solid #FFCDD2;">
+                <button type="submit" class="btn btn-danger" style="width: 100%; background-color: #FFF0F0; color: var(--danger); border: 1px solid #FFCDD2;">
                     <i class="fa-solid fa-trash"></i> Delete Record
                 </button>
             </form>
@@ -222,6 +235,19 @@
 
     function applyZoom() {
         document.getElementById('viewerImage').style.transform = `scale(${currentZoom})`;
+    }
+
+    // Photo deletion functions for Edit Modal
+    function markPhotoForDeletion(recordId) {
+        document.getElementById('deletePhotoFlag' + recordId).value = '1';
+        document.getElementById('photoRow' + recordId).style.display = 'none';
+        document.getElementById('photoDeletedNotice' + recordId).style.display = 'block';
+    }
+
+    function undoPhotoDeletion(recordId) {
+        document.getElementById('deletePhotoFlag' + recordId).value = '0';
+        document.getElementById('photoRow' + recordId).style.display = 'flex';
+        document.getElementById('photoDeletedNotice' + recordId).style.display = 'none';
     }
 
     // Add mouse wheel zoom support
