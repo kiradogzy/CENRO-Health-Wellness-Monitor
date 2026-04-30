@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Reports{% endblock %}
+{% block page_title %}Generate Reports{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 style="margin-bottom: 24px; color: var(--denr-green-dark);">Generate Health Report</h2>
+    <p style="color: var(--text-muted); margin-bottom: 32px;">Select the criteria below to generate a comprehensive PDF or Excel report of the health records.</p>
+    
+    <div class="grid-2-cols" style="grid-template-columns: 1fr 1fr 1fr; align-items: end;">
+        <div class="form-group">
+            <label class="form-label">Report Type</label>
+            <select name="report_type" id="report_type" class="form-control">
+                <option value="monthly">Monthly Report</option>
+                <option value="yearly">Yearly Report</option>
+                <option value="all">All Records</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Select Month/Year</label>
+            <input type="month" name="month_year" id="month_year" class="form-control">
+        </div>
+
+        <div class="form-group" style="display: flex; gap: 12px;">
+            <button onclick="exportReport('pdf')" class="btn btn-primary" style="flex: 1; background-color: var(--denr-green);">
+                <i class="fa-solid fa-file-pdf"></i> PDF
+            </button>
+            <button onclick="exportReport('excel')" class="btn btn-primary" style="flex: 1; background-color: var(--denr-gold-dark);">
+                <i class="fa-solid fa-file-excel"></i> Excel
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function exportReport(type) {
+    const reportType = document.getElementById('report_type').value;
+    const monthYear = document.getElementById('month_year').value;
+    
+    if ((reportType === 'monthly' || reportType === 'yearly') && !monthYear) {
+        alert('Please select a month/year for this report type.');
+        return;
+    }
+    
+    const url = type === 'pdf' ? '{{ url_for("export_pdf") }}' : '{{ url_for("export_excel") }}';
+    window.location.href = `${url}?report_type=${reportType}&month_year=${monthYear}`;
+}
+</script>
+{% endblock %}

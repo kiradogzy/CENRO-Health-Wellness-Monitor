@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Databases
+*.db
+
+# Uploads
+static/uploads/evidence/*
+!static/uploads/evidence/.gitkeep
+
+# Environment variables
+.env
+
+# IDEs
+.vscode/
+.idea/
+.gemini/

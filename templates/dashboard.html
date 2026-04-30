@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Overview{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+    <div class="card stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+        <div class="stat-details">
+            <h3>Total Personnel</h3>
+            <p>{{ total_personnel }}</p>
+        </div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-icon"><i class="fa-solid fa-file-medical"></i></div>
+        <div class="stat-details">
+            <h3>Total Records</h3>
+            <p>{{ total_records }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 32px;">
+    <h2><i class="fa-solid fa-chart-line" style="color: var(--denr-green); margin-right: 12px;"></i> Health Trends
+        Overview</h2>
+    <div style="height: 300px; width: 100%; margin-top: 20px;">
+        <canvas id="healthTrendsChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom: 24px; color: var(--denr-green-dark);">Recent Checkups</h2>
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Personnel</th>
+                    <th>Blood Pressure</th>
+                    <th>Sugar Level</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in recent_records %}
+                <tr>
+                    <td>{{ record.record_date }}</td>
+                    <td><strong>{{ record.last_name }}, {{ record.first_name }} {{ record.middle_name[:1].upper() ~ '.'
+                            if record.middle_name else '' }}</strong></td>
+                    <td>{{ record.bp_systolic }}/{{ record.bp_diastolic }} mmHg</td>
+                    <td>{{ record.sugar_level }} mg/dL</td>
+                    <td><span style="color: var(--text-muted);">{{ record.notes if record.notes else '--' }}</span></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Placeholder chart data
+    const ctx = document.getElementById('healthTrendsChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels | tojson | safe }},
+        datasets: [{
+            label: 'Avg Systolic BP',
+            data: {{ chart_data | tojson | safe }},
+        borderColor: '#2E7D32',
+        backgroundColor: 'rgba(46, 125, 50, 0.1)',
+        tension: 0.4,
+        fill: true
+            }]
+        },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'top' }
+        },
+        scales: {
+            y: { beginAtZero: false, min: 90 }
+        }
+    }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - CENRO Health Monitor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)),
+            url("{{ url_for('static', filename='img/cenro_bg.jpeg') }}") center/cover no-repeat fixed;
+        }
+
+        .login-container {
+            background-color: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 100%;
+            max-width: 420px;
+            overflow: hidden;
+        }
+
+        .login-header {
+            background: linear-gradient(180deg, var(--denr-green-dark) 0%, var(--denr-green) 100%);
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+        }
+
+        .login-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--denr-gold);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            line-height: 1.3;
+        }
+
+        .login-brand i {
+            font-size: 3rem;
+            margin-bottom: 8px;
+        }
+
+        .login-body {
+            padding: 32px 24px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .login-btn {
+            width: 100%;
+            justify-content: center;
+            padding: 12px;
+            font-size: 1rem;
+            margin-top: 16px;
+        }
+
+        .flash-messages-login {
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-container">
+        <div class="login-header">
+            <div class="login-brand">
+                <i class="fa-solid fa-leaf"></i>
+                <span>CENRO<br>Health Monitor</span>
+            </div>
+            <p style="margin-top: 12px; color: rgba(255,255,255,0.8); font-size: 0.9rem;">Please login to your account
+            </p>
+        </div>
+
+        <div class="login-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages-login">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}"
+                    style="position: static; transform: none; box-shadow: none; margin-bottom: 12px;">
+                    {% if category == 'success' %}
+                    <i class="fa-solid fa-circle-check"></i>
+                    {% elif category == 'danger' %}
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {% else %}
+                    <i class="fa-solid fa-circle-info"></i>
+                    {% endif %}
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" class="form-control" placeholder="Enter username"
+                        autofocus oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-control"
+                        placeholder="Enter password" oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')">
+                </div>
+
+                <button type="submit" class="btn btn-primary login-btn">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+</body>
+
+</html>

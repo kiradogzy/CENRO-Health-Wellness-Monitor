@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+
+{% block title %}Health Records{% endblock %}
+{% block page_title %}Health Records Management{% endblock %}
+
+{% block content %}
+<div class="grid-2-cols">
+    <!-- Add Form -->
+    <div>
+        <div class="card">
+            <h2 style="margin-bottom: 10px; color: var(--denr-green-dark); font-size: 1.5rem;">Add Health Record</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">All fields with <span style="color: var(--danger);">*</span> are required.</p>
+            <form action="{{ url_for('records') }}" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label class="form-label">Select Personnel <span style="color: var(--danger);">*</span></label>
+                    <select name="personnel_id" class="form-control">
+                        <option value="" disabled selected>-- Select Personnel --</option>
+                        {% for p in personnel %}
+                        <option value="{{ p.id }}">{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Date of Checkup <span style="color: var(--danger);">*</span></label>
+                    <input type="date" name="record_date" class="form-control">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Systolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
+                        <input type="number" name="bp_systolic" class="form-control" placeholder="e.g. 120">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Diastolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
+                        <input type="number" name="bp_diastolic" class="form-control" placeholder="e.g. 80">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Blood Sugar Level (mg/dL) <span style="color: var(--danger);">*</span></label>
+                    <input type="number" step="0.1" name="sugar_level" class="form-control" placeholder="e.g. 95.5">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes / Remarks</label>
+                    <textarea name="notes" class="form-control" rows="3" placeholder="Optional remarks..." oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Evidence Photo (Optional)</label>
+                    <input type="file" name="evidence_photo" accept="image/*" class="form-control" style="padding: 8px 16px;">
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fa-solid fa-save"></i> Save Record
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Records List -->
+    <div>
+        <div class="card">
+            <h2 style="margin-bottom: 20px; color: var(--denr-green-dark); font-size: 1.5rem;">All Records</h2>
+            <div class="table-container" style="max-height: 600px; overflow-y: auto;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Name</th>
+                            <th>BP (mmHg)</th>
+                            <th>Sugar (mg/dL)</th>
+                            <th>Evidence</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in records %}
+                        <tr>
+                            <td>{{ r.record_date }}</td>
+                            <td><strong>{{ r.last_name }}, {{ r.first_name }} {{ r.middle_name[:1].upper() ~ '.' if r.middle_name else '' }}</strong></td>
+                            <td>{{ r.bp_systolic }}/{{ r.bp_diastolic }}</td>
+                            <td>{{ r.sugar_level }}</td>
+                            <td>
+                                {% if r.evidence_photo %}
+                                <button type="button" class="btn" style="padding: 4px 8px; font-size: 0.8rem; background-color: #E8F5E9; color: var(--denr-green);" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')">
+                                    <i class="fa-solid fa-image"></i> View
+                                </button>
+                                {% else %}
+                                <span style="color: var(--text-muted); font-size: 0.85rem;">None</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button type="button" class="btn" style="padding: 6px 12px; background-color: var(--denr-gold); color: var(--denr-green-dark); font-size: 0.85rem;" onclick="document.getElementById('editModal{{ r.id }}').classList.add('show')">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit
+                                </button>
+                            </td>
+                        </tr>
+
+                        {% else %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted);">No health records yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if session.role == 'admin' %}
+<!-- Edit Modals (outside layout wrappers to prevent z-index/flickering issues) -->
+{% for r in records %}
+<div id="editModal{{ r.id }}" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit Record: {{ r.first_name }} {{ r.middle_name[:1].upper() ~ '. ' if r.middle_name else '' }}{{ r.last_name }}</h2>
+            <span class="close-modal" onclick="document.getElementById('editModal{{ r.id }}').classList.remove('show')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form action="{{ url_for('edit_record', id=r.id) }}" method="POST" enctype="multipart/form-data">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">All fields with <span style="color: var(--danger);">*</span> are required.</p>
+                <div class="form-group">
+                    <label class="form-label">Date of Checkup <span style="color: var(--danger);">*</span></label>
+                    <input type="date" name="record_date" class="form-control" value="{{ r.record_date }}">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Systolic BP <span style="color: var(--danger);">*</span></label>
+                        <input type="number" name="bp_systolic" class="form-control" value="{{ r.bp_systolic }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Diastolic BP <span style="color: var(--danger);">*</span></label>
+                        <input type="number" name="bp_diastolic" class="form-control" value="{{ r.bp_diastolic }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Blood Sugar Level <span style="color: var(--danger);">*</span></label>
+                    <input type="number" step="0.1" name="sugar_level" class="form-control" value="{{ r.sugar_level }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea name="notes" class="form-control" rows="2" oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')">{{ r.notes if r.notes else '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Evidence Photo (Optional)</label>
+                    {% if r.evidence_photo %}
+                    <div style="margin-bottom: 8px;">
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">Current: </span>
+                        <a href="javascript:void(0)" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')" style="font-size: 0.85rem; color: var(--denr-green);">View Photo</a>
+                    </div>
+                    {% endif %}
+                    <input type="file" name="evidence_photo" accept="image/*" class="form-control" style="padding: 8px 16px;">
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 8px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 2;">Save Changes</button>
+                    <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="document.getElementById('editModal{{ r.id }}').classList.remove('show')">Cancel</button>
+                </div>
+            </form>
+            <form action="{{ url_for('delete_record', id=r.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to completely delete this record? This action cannot be undone.');" style="margin-top: 12px;">
+                <button type="submit" class="btn" style="width: 100%; background-color: #FFF0F0; color: var(--danger); border: 1px solid #FFCDD2;">
+                    <i class="fa-solid fa-trash"></i> Delete Record
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Image Viewer Modal -->
+<div id="imageViewerModal" class="modal" onclick="if(event.target==this) closeImageModal()">
+    <div class="modal-content" style="max-width: 90vw; max-height: 90vh; background: transparent; box-shadow: none; padding: 0; display: flex; flex-direction: column; align-items: center; position: relative;">
+        <div style="width: 100%; text-align: right; margin-bottom: 10px; z-index: 10; display: flex; justify-content: flex-end;">
+            <div style="display: inline-flex; gap: 8px; background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 8px; align-items: center;">
+                <button type="button" class="btn" style="padding: 4px 12px; background: white; color: black; min-width: auto;" onclick="zoomImage(0.2)" title="Zoom In"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                <button type="button" class="btn" style="padding: 4px 12px; background: white; color: black; min-width: auto;" onclick="zoomImage(-0.2)" title="Zoom Out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                <button type="button" class="btn" style="padding: 4px 12px; background: white; color: black; min-width: auto;" onclick="resetZoom()" title="Reset Zoom"><i class="fa-solid fa-expand"></i></button>
+                <span class="close-modal" style="color: white; font-size: 1.8rem; margin-left: 16px; cursor: pointer; line-height: 1;" onclick="closeImageModal()">&times;</span>
+            </div>
+        </div>
+        <div style="width: 100%; height: 80vh; overflow: auto; display: flex; align-items: center; justify-content: center;">
+            <img id="viewerImage" src="" alt="Evidence" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); transform-origin: center center;">
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentZoom = 1;
+
+    function openImageModal(imgSrc) {
+        document.getElementById('viewerImage').src = imgSrc;
+        document.getElementById('imageViewerModal').classList.add('show');
+        resetZoom();
+    }
+
+    function closeImageModal() {
+        document.getElementById('imageViewerModal').classList.remove('show');
+    }
+
+    function zoomImage(step) {
+        currentZoom += step;
+        if (currentZoom < 0.2) currentZoom = 0.2;
+        if (currentZoom > 5) currentZoom = 5;
+        applyZoom();
+    }
+
+    function resetZoom() {
+        currentZoom = 1;
+        applyZoom();
+    }
+
+    function applyZoom() {
+        document.getElementById('viewerImage').style.transform = `scale(${currentZoom})`;
+    }
+
+    // Add mouse wheel zoom support
+    document.getElementById('imageViewerModal').addEventListener('wheel', function(e) {
+        // Only zoom if scrolling on the image area
+        if (e.target.id === 'viewerImage') {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                zoomImage(0.15);
+            } else {
+                zoomImage(-0.15);
+            }
+        }
+    }, {passive: false});
+</script>
+{% endblock %}
