@@ -688,7 +688,110 @@ input[type="file"]::file-selector-button:hover {
 
 .toast.hide {
     transform: translateX(120%);
-    opacity: 0;
+}
+
+/* ─── Advanced Dark Mode Overrides ────────────────────────────────────────── */
+
+[data-theme="dark"] .table th {
+    background-color: rgba(46, 125, 50, 0.15);
+    color: var(--denr-green-light);
+    border-bottom: 2px solid var(--border);
+}
+
+[data-theme="dark"] .table td {
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border);
+}
+
+[data-theme="dark"] .table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .btn-danger {
+    background-color: rgba(231, 76, 60, 0.15) !important;
+    color: #FCA5A5 !important;
+    border: 1px solid rgba(231, 76, 60, 0.3) !important;
+}
+
+[data-theme="dark"] .btn-danger:hover {
+    background-color: var(--danger) !important;
+    color: white !important;
+}
+
+[data-theme="dark"] .form-control {
+    background-color: #121212;
+    border-color: var(--border);
+    color: #E0E0E0;
+}
+
+[data-theme="dark"] .form-control:focus {
+    background-color: #1A1A1A;
+}
+
+[data-theme="dark"] input[type="file"]::file-selector-button {
+    background-color: rgba(46, 125, 50, 0.2);
+    color: var(--denr-green-light);
+}
+
+[data-theme="dark"] input[type="file"]::file-selector-button:hover {
+    background-color: rgba(46, 125, 50, 0.3);
+}
+
+/* Override inline colors for headers */
+[data-theme="dark"] h2[style*="color: var(--denr-green-dark)"] {
+    color: var(--denr-green-light) !important;
+}
+
+[data-theme="dark"] h3[style*="color: var(--denr-green-dark)"] {
+    color: var(--denr-green-light) !important;
+}
+
+/* Override inline colors for specific buttons (Edit/Delete) */
+[data-theme="dark"] .btn[style*="background-color: #FEE2E2"] {
+    background-color: rgba(231, 76, 60, 0.15) !important;
+    color: #FCA5A5 !important;
+    border: 1px solid rgba(231, 76, 60, 0.2) !important;
+}
+
+[data-theme="dark"] .btn[style*="background-color: var(--denr-gold)"] {
+    background-color: rgba(251, 192, 45, 0.15) !important;
+    color: var(--denr-gold) !important;
+    border: 1px solid rgba(251, 192, 45, 0.2) !important;
+}
+
+/* Smart Insights card dark mode */
+[data-theme="dark"] .glow-alert {
+    background-color: rgba(230, 81, 0, 0.1) !important;
+    border-color: rgba(230, 81, 0, 0.3) !important;
+}
+
+/* Pagination dark mode */
+[data-theme="dark"] .pagination .page-link {
+    background-color: var(--surface);
+    border-color: var(--border);
+    color: var(--denr-green-light);
+}
+
+[data-theme="dark"] .pagination .page-link:hover {
+    background-color: rgba(46, 125, 50, 0.15);
+}
+
+[data-theme="dark"] .pagination .page-item.active .page-link {
+    background-color: var(--denr-green);
+    color: white;
+    border-color: var(--denr-green);
+}
+
+[data-theme="dark"] .pagination .page-item.disabled .page-link {
+    color: var(--text-muted);
+    background-color: #121212;
+    border-color: var(--border);
+}
+
+/* Close button dark mode */
+[data-theme="dark"] .modal-close:hover {
+    color: #FFFFFF;
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .toast-icon {
