@@ -42,7 +42,12 @@
             {# Date #}
             <div class="form-group">
                 <label class="form-label">Date of Checkup <span style="color: var(--danger);">*</span></label>
-                <input type="date" id="record_date" name="record_date" class="form-control" required>
+                <div style="display: flex; gap: 8px;">
+                    <input type="date" id="record_date" name="record_date" class="form-control" required style="flex: 1;">
+                    <button type="button" class="btn" style="background-color: #E8F5E9; color: var(--denr-green-dark); font-weight: 600; padding: 0 16px;" onclick="document.getElementById('record_date').valueAsDate = new Date();">
+                        <i class="fa-regular fa-calendar-check" style="margin-right: 4px;"></i> Today
+                    </button>
+                </div>
             </div>
 
             {# BP Row #}

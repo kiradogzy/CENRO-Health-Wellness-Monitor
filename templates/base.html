@@ -281,6 +281,19 @@
                 }
             });
         }
+
+        // Global Escape Key listener to close modals
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const openModals = document.querySelectorAll('.modal.show');
+                openModals.forEach(modal => {
+                    modal.classList.remove('show');
+                });
+                if (typeof closeDeleteModal === 'function') {
+                    closeDeleteModal();
+                }
+            }
+        });
     </script>
     {% block scripts %}{% endblock %}
 </body>

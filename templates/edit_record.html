@@ -10,7 +10,12 @@
     <form action="{{ url_for('edit_record', id=record.id) }}" method="POST">
         <div class="form-group">
             <label class="form-label">Date of Checkup</label>
-            <input type="date" name="record_date" class="form-control" value="{{ record.record_date }}">
+            <div style="display: flex; gap: 8px;">
+                <input type="date" id="edit_record_date" name="record_date" class="form-control" value="{{ record.record_date }}" style="flex: 1;">
+                <button type="button" class="btn" style="background-color: #E8F5E9; color: var(--denr-green-dark); font-weight: 600; padding: 0 16px;" onclick="document.getElementById('edit_record_date').valueAsDate = new Date();">
+                    <i class="fa-regular fa-calendar-check" style="margin-right: 4px;"></i> Today
+                </button>
+            </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">

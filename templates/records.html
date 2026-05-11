@@ -25,7 +25,7 @@
             </span>
             <div style="position: relative; width: 250px;">
                 <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                <input type="text" id="recordsSearch" class="form-control" placeholder="Search records..." style="padding-left: 36px;" onkeyup="filterTable('recordsTable', this.value)">
+                <input type="text" id="recordsSearch" class="form-control" placeholder="Search records..." style="padding-left: 36px;" oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, ''); filterTable('recordsTable', this.value)">
             </div>
         </div>
     </div>
@@ -343,7 +343,6 @@
 
     function openEditModal(id) {
         document.getElementById('editModal' + id).classList.add('show');
-        setTimeout(() => document.querySelector('#editModal' + id + ' input[name="record_date"]').focus(), 100);
     }
 
     function closeAddModal() {

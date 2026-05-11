@@ -101,9 +101,11 @@ def get_overall_risk(bp_level, sugar_level):
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'cenro_dc_health_super_secret_key_2026')
 app.permanent_session_lifetime = timedelta(minutes=15)
-DATABASE = 'health_monitor.db'
+# Configuration
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, 'health_monitor.db')
 
-UPLOAD_FOLDER = os.path.join('static', 'uploads', 'evidence')
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads', 'evidence')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)

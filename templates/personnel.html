@@ -23,7 +23,7 @@
             </span>
             <div style="position: relative; width: 250px;">
                 <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                <input type="text" id="personnelSearch" class="form-control" placeholder="Search personnel..." style="padding-left: 36px;" onkeyup="filterTable('personnelTable', this.value)">
+                <input type="text" id="personnelSearch" class="form-control" placeholder="Search personnel..." style="padding-left: 36px;" oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, ''); filterTable('personnelTable', this.value)">
             </div>
         </div>
     </div>

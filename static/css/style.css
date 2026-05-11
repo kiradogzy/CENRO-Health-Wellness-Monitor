@@ -505,7 +505,7 @@ input[type="file"]::file-selector-button:hover {
     font-weight: 600;
     white-space: nowrap;
 }
-.badge-normal   { background: #E8F5E9; color: #1B5E20; border: 1px solid #A5D6A7; }
+.badge-normal, .badge-success { background: #E8F5E9; color: #1B5E20; border: 1px solid #A5D6A7; }
 .badge-elevated { background: #FFF8E1; color: #A33900; border: 1px solid #FFE082; }
 .badge-warning  { background: #FFF3E0; color: #A33900; border: 1px solid #FFCC80; }
 .badge-stage1   { background: #FFF3E0; color: #BF360C; border: 1px solid #FFAB91; }
