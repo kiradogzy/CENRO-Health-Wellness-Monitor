@@ -190,11 +190,6 @@ body {
     border: 1px solid var(--border);
 }
 
-.card:hover {
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
-}
-
 .interactive-card {
     cursor: pointer;
 }
