@@ -98,6 +98,9 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block modals %}
 {% if session.role in ('admin', 'super_admin') %}
 <!-- Edit Modals -->
 {% for p in personnel %}

@@ -83,6 +83,9 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block modals %}
 <!-- Edit User Modal -->
 <div id="editUserModal" class="modal" onclick="if(event.target===this) closeEditUserModal()">
     <div class="modal-content">
@@ -120,7 +123,10 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+
+{% block scripts %}
 <script>
     function openEditUserModal(id, username, role) {
         document.getElementById('edit_username').value = username;
@@ -175,3 +181,4 @@
     }
 </script>
 {% endblock %}
+
