@@ -18,6 +18,18 @@
             <i class="fa-solid fa-address-book" style="margin-right: 10px; color: var(--denr-green);"></i>CDC Personnel List
         </h2>
         <div style="display: flex; gap: 16px; align-items: center; margin-left: auto;">
+            <!-- Entries per page dropdown -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="entriesPerPage" style="font-size: 0.85rem; color: var(--text-muted);">Show</label>
+                <select id="entriesPerPage" class="form-control" style="width: auto; padding: 4px 8px; border-radius: 6px;" onchange="updatePagination()">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="all">All</option>
+                </select>
+                <label for="entriesPerPage" style="font-size: 0.85rem; color: var(--text-muted);">entries</label>
+            </div>
+
             <span style="font-size: 0.85rem; color: var(--text-muted);" id="personnelCount">
                 {{ personnel | length }} personnel found
             </span>
@@ -73,6 +85,16 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Pagination UI -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; flex-wrap: wrap; gap: 12px; padding: 0 8px;">
+        <span style="font-size: 0.85rem; color: var(--text-muted);" id="paginationInfo">Showing 0 to 0 of 0 entries</span>
+        <div class="pagination" style="display: flex; gap: 4px;" id="paginationControls">
+            <button class="btn page-link" id="prevPageBtn" onclick="changePage(-1)" style="padding: 4px 12px; border-radius: var(--radius-md);"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+            <span id="pageNumbers" style="display: flex; gap: 4px; align-items: center; margin: 0 8px; font-weight: 600; font-size: 0.9rem; color: var(--text-main);"></span>
+            <button class="btn page-link" id="nextPageBtn" onclick="changePage(1)" style="padding: 4px 12px; border-radius: var(--radius-md);">Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
     </div>
 </div>
 
@@ -162,6 +184,107 @@
 
 {% block scripts %}
 <script>
+    let currentPage = 1;
+    let filteredRows = [];
+
+    // Override base.html filterTable
+    window.filterTable = function(tableId, query) {
+        query = query.toLowerCase();
+        const table = document.getElementById(tableId);
+        const tr = table.getElementsByTagName("tr");
+        
+        filteredRows = []; // reset
+        
+        for (let i = 1; i < tr.length; i++) {
+            if (tr[i].getElementsByTagName("td").length > 1) { // Skip empty state row
+                const rowText = tr[i].textContent || tr[i].innerText;
+                if (rowText.toLowerCase().indexOf(query) > -1) {
+                    filteredRows.push(tr[i]);
+                    tr[i].style.display = ""; // Temporarily show
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+        
+        currentPage = 1; // Reset to page 1 on search
+        updatePagination();
+    };
+
+    window.updatePagination = function() {
+        const table = document.getElementById('personnelTable');
+        const tr = table.getElementsByTagName("tr");
+        
+        // If not initialized (no search happened), populate filteredRows
+        if (filteredRows.length === 0 && document.getElementById('personnelSearch').value === '') {
+            for (let i = 1; i < tr.length; i++) {
+                if (tr[i].getElementsByTagName("td").length > 1) {
+                    filteredRows.push(tr[i]);
+                }
+            }
+        }
+        
+        const select = document.getElementById('entriesPerPage');
+        const entries = select.value === 'all' ? filteredRows.length : parseInt(select.value);
+        const totalEntries = filteredRows.length;
+        const totalPages = Math.ceil(totalEntries / (entries || 1)) || 1;
+        
+        // Enforce page bounds
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+        
+        const startIndex = (currentPage - 1) * entries;
+        const endIndex = select.value === 'all' ? totalEntries : Math.min(startIndex + entries, totalEntries);
+        
+        // Hide all filtered rows, then show only the slice for this page
+        filteredRows.forEach((row, index) => {
+            if (index >= startIndex && index < endIndex) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+        
+        // Update Info
+        const info = document.getElementById('paginationInfo');
+        if (totalEntries === 0) {
+            info.innerText = "Showing 0 to 0 of 0 entries";
+        } else {
+            info.innerText = `Showing ${startIndex + 1} to ${endIndex} of ${totalEntries} entries`;
+        }
+        
+        // Update Counter
+        const counter = document.getElementById('personnelCount');
+        if (counter) {
+            counter.innerText = totalEntries + ' personnel found';
+        }
+        
+        // Update Buttons
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+        
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage === totalPages;
+        
+        prevBtn.style.opacity = currentPage === 1 ? '0.5' : '1';
+        nextBtn.style.opacity = currentPage === totalPages ? '0.5' : '1';
+        
+        prevBtn.style.pointerEvents = currentPage === 1 ? 'none' : 'auto';
+        nextBtn.style.pointerEvents = currentPage === totalPages ? 'none' : 'auto';
+        
+        document.getElementById('pageNumbers').innerText = `Page ${currentPage} of ${totalPages}`;
+    };
+
+    window.changePage = function(direction) {
+        currentPage += direction;
+        updatePagination();
+    };
+    
+    // Initialize pagination on load
+    document.addEventListener("DOMContentLoaded", function() {
+        updatePagination();
+    });
+
     function openAddPersonnelModal() {
         document.getElementById('addPersonnelModal').classList.add('show');
         setTimeout(() => document.querySelector('#addPersonnelModal input[name="first_name"]').focus(), 100);
