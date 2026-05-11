@@ -417,14 +417,15 @@ input[type="file"]::file-selector-button:hover {
 .modal {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     position: fixed;
     z-index: 1000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
-    overflow: auto;
+    overflow-y: auto;
+    padding: 40px 16px;
     background-color: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(5px);
     opacity: 0;
@@ -444,12 +445,14 @@ input[type="file"]::file-selector-button:hover {
     border: 1px solid var(--border);
     width: 90%;
     max-width: 600px;
+    max-height: calc(100vh - 80px);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
     transform: scale(0.95);
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .modal.show .modal-content {
@@ -462,6 +465,7 @@ input[type="file"]::file-selector-button:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .modal-header h2 {
@@ -484,6 +488,8 @@ input[type="file"]::file-selector-button:hover {
 
 .modal-body {
     padding: 24px;
+    overflow-y: auto;
+    flex: 1;
 }
 
 @keyframes slideIn {
