@@ -136,6 +136,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS personnel (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 first_name TEXT NOT NULL,
+                middle_name TEXT,
                 last_name TEXT NOT NULL,
                 designation TEXT,
                 date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
