@@ -192,11 +192,13 @@ body {
 
 .interactive-card {
     cursor: pointer;
+    transition: translate 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    translate: 0 0;
 }
 
 .interactive-card:hover {
-    transform: translateY(-4px) !important;
-    box-shadow: var(--shadow-lg) !important;
+    translate: 0 -4px;
+    box-shadow: var(--shadow-lg);
 }
 
 /* User Role Badges */
