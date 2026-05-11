@@ -466,17 +466,20 @@
         }
     }
 
-    document.getElementById('add_bp_systolic').addEventListener('input', updateAddBPPreview);
-    document.getElementById('add_bp_diastolic').addEventListener('input', updateAddBPPreview);
-    document.getElementById('add_sugar_level').addEventListener('input', updateAddSugarPreview);
-
-    // Auto-open Add Modal from Global FAB
+    // Auto-open Add Modal from Global FAB + safe input listeners
     window.addEventListener('DOMContentLoaded', () => {
+        // Only attach input listeners if the add modal inputs exist (admin/super_admin only)
+        const sysEl = document.getElementById('add_bp_systolic');
+        const diaEl = document.getElementById('add_bp_diastolic');
+        const sugEl = document.getElementById('add_sugar_level');
+        if (sysEl) sysEl.addEventListener('input', updateAddBPPreview);
+        if (diaEl) diaEl.addEventListener('input', updateAddBPPreview);
+        if (sugEl) sugEl.addEventListener('input', updateAddSugarPreview);
+
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('add') === 'true') {
             if (typeof openAddModal === 'function') {
                 openAddModal();
-                // Clean up the URL so it doesn't re-open on refresh
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
         }
