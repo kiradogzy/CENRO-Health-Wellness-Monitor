@@ -572,7 +572,7 @@ input[type="file"]::file-selector-button:hover {
 [data-theme="dark"] .badge-normal, [data-theme="dark"] .badge-success { background: rgba(27, 94, 32, 0.2); color: #A5D6A7; border-color: #2E7D32; }
 [data-theme="dark"] .badge-warning { background: rgba(245, 127, 23, 0.2); color: #FFE082; border-color: #F57F17; }
 [data-theme="dark"] .badge-danger { background: rgba(183, 28, 28, 0.2); color: #EF9A9A; border-color: #C62828; }
-.badge-high     { background: #FFEBEE; color: #B71C1C; border: 1px solid #EF9A9A; }
+.badge-high     { background: #FFEBEE; color: #B71C1C; border: 1px solid #EF9A9A; animation: pulseRed 2s infinite; }
 .badge-crisis, .badge-critical { background: #4A0000; color: #fff; border: 1px solid #7F0000; animation: pulse-critical 1.5s infinite; }
 
 @keyframes pulse-critical {
