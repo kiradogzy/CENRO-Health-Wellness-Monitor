@@ -581,7 +581,7 @@ input[type="file"]::file-selector-button:hover {
 }
 
 .glow-alert {
-    animation: pulse-glow 2s infinite;
+    animation: fadeInUp 0.5s ease-out forwards, pulse-glow 2s infinite;
 }
 
 @keyframes pulse-glow {
