@@ -267,6 +267,44 @@ def manage_users():
     users = db.execute('SELECT id, username, role FROM users').fetchall()
     return render_template('users.html', users=users)
 
+@app.route('/edit_user/<int:id>', methods=['POST'])
+@super_admin_required
+def edit_user(id):
+    db = get_db()
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    role = request.form.get('role', 'viewer')
+    
+    if not username:
+        flash('Username is required.', 'danger')
+        return redirect(url_for('manage_users'))
+        
+    if re.search(r'[^\x00-\x7FñÑ]', username) or (password and re.search(r'[^\x00-\x7FñÑ]', password)):
+        flash('Emojis or unsupported characters are not allowed.', 'danger')
+        return redirect(url_for('manage_users'))
+
+    existing_user = db.execute('SELECT id FROM users WHERE username = ? AND id != ?', (username, id)).fetchone()
+    if existing_user:
+        flash('Username already exists.', 'danger')
+        return redirect(url_for('manage_users'))
+        
+    if password:
+        db.execute('UPDATE users SET username = ?, password_hash = ?, role = ? WHERE id = ?',
+                   (username, generate_password_hash(password), role, id))
+    else:
+        db.execute('UPDATE users SET username = ?, role = ? WHERE id = ?',
+                   (username, role, id))
+                   
+    db.commit()
+    
+    # If the super admin updated their own username, update session
+    if id == session.get('user_id'):
+        session['username'] = username
+        session['role'] = role
+        
+    flash('User updated successfully!', 'success')
+    return redirect(url_for('manage_users'))
+
 @app.route('/delete_user/<int:id>', methods=['POST'])
 @super_admin_required
 def delete_user(id):
