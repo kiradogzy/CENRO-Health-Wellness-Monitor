@@ -10,6 +10,12 @@
 </head>
 
 <body>
+    <script>
+        // Apply theme immediately to prevent flashing
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
 
     <aside class="sidebar" id="mainSidebar">
         <script>
@@ -82,7 +88,11 @@
             </div>
             {% endif %}
 
-            <div class="user-profile">
+            <div class="user-profile" style="display: flex; align-items: center; gap: 16px;">
+                <!-- Theme Toggle Button -->
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode" style="color: var(--text-main); background: transparent; border: 1px solid var(--border);">
+                    <i class="fa-solid fa-moon" id="themeIcon"></i>
+                </button>
                 {% if session.username %}
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <div style="text-align: right;">
@@ -142,8 +152,19 @@
             {% endwith %}
         </div>
 
-        {% block content %}{% endblock %}
+        <main class="animate-fade-in" style="flex: 1;">
+            {% block content %}{% endblock %}
+        </main>
         
+        <!-- Global Action Button (FAB) -->
+        {% if session.role in ('admin', 'super_admin') %}
+        <div class="fab-container">
+            <button class="fab-btn" onclick="openGlobalAdd()" title="Quick Add Record">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </div>
+        {% endif %}
+
         <!-- Global Delete Confirmation Modal -->
         <div id="deleteConfirmModal" class="modal" onclick="if(event.target===this) closeDeleteModal()">
             <div class="modal-content" style="max-width: 400px; text-align: center; padding: 30px 20px;">
@@ -293,6 +314,73 @@
                     closeDeleteModal();
                 }
             }
+        });
+
+        // Theme Toggle Logic
+        function toggleTheme() {
+            const docEl = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (docEl.getAttribute('data-theme') === 'dark') {
+                docEl.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            } else {
+                docEl.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+        }
+        
+        // Initialize Theme Icon
+        window.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('theme') === 'dark') {
+                const icon = document.getElementById('themeIcon');
+                if (icon) {
+                    icon.classList.remove('fa-moon');
+                    icon.classList.add('fa-sun');
+                }
+            }
+        });
+
+        // Global Quick Add logic
+        function openGlobalAdd() {
+            // If we are on the records page, just open the modal. Otherwise navigate.
+            if (window.location.pathname.includes('/records')) {
+                if (typeof openAddModal === 'function') openAddModal();
+            } else {
+                window.location.href = "{{ url_for('records') }}?add=true";
+            }
+        }
+
+        // Basic Table Sorting Logic
+        document.querySelectorAll('.table th.sortable').forEach(headerCell => {
+            headerCell.addEventListener('click', () => {
+                const tableElement = headerCell.closest('.table');
+                const tBody = tableElement.querySelector('tbody');
+                const rows = Array.from(tBody.querySelectorAll('tr'));
+                const columnIndex = Array.from(headerCell.parentNode.children).indexOf(headerCell);
+                const isAsc = headerCell.classList.contains('asc');
+                const directionModifier = isAsc ? -1 : 1;
+
+                rows.sort((a, b) => {
+                    const aColText = a.querySelector(`td:nth-child(${columnIndex + 1})`).textContent.trim();
+                    const bColText = b.querySelector(`td:nth-child(${columnIndex + 1})`).textContent.trim();
+                    return aColText > bColText ? (1 * directionModifier) : (-1 * directionModifier);
+                });
+
+                // Remove existing sort classes
+                tableElement.querySelectorAll('th').forEach(th => {
+                    th.classList.remove('asc', 'desc');
+                });
+
+                // Toggle sort class
+                headerCell.classList.add(isAsc ? 'desc' : 'asc');
+
+                // Append sorted rows
+                tBody.append(...rows);
+            });
         });
     </script>
     {% block scripts %}{% endblock %}

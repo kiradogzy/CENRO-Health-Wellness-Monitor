@@ -448,6 +448,18 @@
     document.getElementById('add_bp_diastolic').addEventListener('input', updateAddBPPreview);
     document.getElementById('add_sugar_level').addEventListener('input', updateAddSugarPreview);
 
+    // Auto-open Add Modal from Global FAB
+    window.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('add') === 'true') {
+            if (typeof openAddModal === 'function') {
+                openAddModal();
+                // Clean up the URL so it doesn't re-open on refresh
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+    });
+
     // Table sorting logic
     function sortTable(n) {
         var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
