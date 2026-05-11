@@ -55,10 +55,7 @@
                         <tr>
                             <td><strong>{{ user.username }}</strong></td>
                             <td>
-                                <span class="badge" style="
-                                        background-color: {% if user.role == 'super_admin' %}#EDE7F6{% elif user.role == 'admin' %}#E8F5E9{% else %}#F1F5F9{% endif %};
-                                        color: {% if user.role == 'super_admin' %}#6A1B9A{% elif user.role == 'admin' %}#2E7D32{% else %}#64748B{% endif %};
-                                        padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">
+                                <span class="role-badge role-{{ user.role | replace('_', '-') }}">
                                     {{ user.role | replace('_', ' ') }}
                                 </span>
                             </td>

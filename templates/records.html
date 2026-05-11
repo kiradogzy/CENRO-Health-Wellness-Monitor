@@ -73,7 +73,7 @@
                     </td>
                     <td>
                         {% if r.evidence_photo %}
-                        <button type="button" class="btn" style="padding: 4px 8px; font-size: 0.8rem; background-color: #E8F5E9; color: var(--denr-green);" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')">
+                        <button type="button" class="btn" style="padding: 4px 8px; font-size: 0.8rem; background-color: #E8F5E9; color: var(--denr-green);" onclick='openImageModal("{{ url_for("static", filename="uploads/evidence/" ~ r.evidence_photo) }}")'>
                             <i class="fa-solid fa-image"></i> View
                         </button>
                         {% else %}
@@ -152,7 +152,7 @@
                     {% if r.evidence_photo %}
                     <div id="photoRow{{ r.id }}" style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px; padding: 8px 12px; background-color: #F4F7F5; border-radius: 8px; border: 1px solid var(--border);">
                         <i class="fa-solid fa-image" style="color: var(--denr-green); font-size: 1rem;"></i>
-                        <a href="javascript:void(0)" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')" style="font-size: 0.85rem; color: var(--denr-green); font-weight: 500; flex: 1;">View Current Photo</a>
+                        <a href="javascript:void(0)" onclick='openImageModal("{{ url_for("static", filename="uploads/evidence/" ~ r.evidence_photo) }}")' style="font-size: 0.85rem; color: var(--denr-green); font-weight: 500; flex: 1;">View Current Photo</a>
                         <button type="button" class="btn btn-danger"
                             style="padding: 4px 10px; font-size: 0.78rem; gap: 4px;"
                             onclick="markPhotoForDeletion('{{ r.id }}')">

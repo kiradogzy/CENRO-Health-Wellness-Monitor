@@ -162,9 +162,32 @@ body {
 }
 
 .card:hover {
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     transform: translateY(-2px);
 }
+
+.interactive-card {
+    cursor: pointer;
+}
+
+.interactive-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+/* User Role Badges */
+.role-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.role-super-admin { background-color: #EDE7F6; color: #6A1B9A; }
+.role-admin       { background-color: #E8F5E9; color: #2E7D32; }
+.role-viewer      { background-color: #F1F5F9; color: #64748B; }
 
 /* Dashboard Grid */
 .stats-grid {

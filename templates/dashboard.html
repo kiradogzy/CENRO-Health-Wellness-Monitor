@@ -5,21 +5,21 @@
 
 {% block content %}
 <div class="stats-grid">
-    <div class="card stat-card" onclick="window.location.href='{{ url_for('personnel') }}'" style="cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)';" onmouseout="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)';">
+    <div class="card stat-card interactive-card" onclick="window.location.href='{{ url_for('personnel') }}'">
         <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
         <div class="stat-details">
             <h3>Total Personnel</h3>
             <p>{{ total_personnel }}</p>
         </div>
     </div>
-    <div class="card stat-card" onclick="window.location.href='{{ url_for('records') }}'" style="cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)';" onmouseout="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)';">
+    <div class="card stat-card interactive-card" onclick="window.location.href='{{ url_for('records') }}'">
         <div class="stat-icon"><i class="fa-solid fa-file-medical"></i></div>
         <div class="stat-details">
             <h3>Total Records</h3>
             <p>{{ total_records }}</p>
         </div>
     </div>
-    <div class="card stat-card" onclick="document.getElementById('elevatedBpModal').classList.add('show')" style="cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)';" onmouseout="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)';">
+    <div class="card stat-card interactive-card" onclick="document.getElementById('elevatedBpModal').classList.add('show')">
         <div class="stat-icon" style="color: #F57F17; background-color: rgba(245, 127, 23, 0.1);"><i
                 class="fa-solid fa-triangle-exclamation"></i></div>
         <div class="stat-details">
@@ -242,16 +242,23 @@
             {% endif %}
         </div>
     </div>
+    <div id="chart-data" 
+         data-labels='{{ chart_labels | tojson | safe }}'
+         data-sys='{{ chart_data_sys | tojson | safe }}'
+         data-dia='{{ chart_data_dia | tojson | safe }}'
+         data-sugar='{{ sugar_data | tojson | safe }}'
+         style="display: none;"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Safely parse Jinja variables into JS variables to avoid formatter issues
-    const chartLabels = {{ chart_labels | tojson | safe }};
-    const chartDataSys = {{ chart_data_sys | tojson | safe }};
-    const chartDataDia = {{ chart_data_dia | tojson | safe }};
-    const sugarData = {{ sugar_data | tojson | safe }};
+    // Safely retrieve chart data from the data container
+    const chartDataEl = document.getElementById('chart-data');
+    const chartLabels = JSON.parse(chartDataEl.dataset.labels);
+    const chartDataSys = JSON.parse(chartDataEl.dataset.sys);
+    const chartDataDia = JSON.parse(chartDataEl.dataset.dia);
+    const sugarData = JSON.parse(chartDataEl.dataset.sugar);
 
     // BP Trends Chart
     const ctx = document.getElementById('healthTrendsChart').getContext('2d');
