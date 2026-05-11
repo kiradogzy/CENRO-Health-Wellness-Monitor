@@ -334,6 +334,16 @@
                 
                 var xContent = x.textContent.toLowerCase().trim();
                 var yContent = y.textContent.toLowerCase().trim();
+
+                // Date Added column (col 2): parse as Date for correct chronological sorting
+                if (n === 2) {
+                    var xDate = new Date(xContent);
+                    var yDate = new Date(yContent);
+                    if (!isNaN(xDate) && !isNaN(yDate)) {
+                        xContent = xDate;
+                        yContent = yDate;
+                    }
+                }
                 
                 if (dir == "asc") {
                     if (xContent > yContent) {

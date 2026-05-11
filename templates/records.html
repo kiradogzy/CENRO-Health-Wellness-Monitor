@@ -19,7 +19,19 @@
         <h2 style="color: var(--denr-green-dark); font-size: 1.4rem; margin: 0;">
             <i class="fa-solid fa-table-list" style="margin-right: 10px; color: var(--denr-green);"></i>Health Records
         </h2>
-        <div style="display: flex; gap: 16px; align-items: center; margin-left: auto;">
+        <div style="display: flex; gap: 16px; align-items: center; margin-left: auto; flex-wrap: wrap;">
+            <!-- Entries per page dropdown -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="recEntriesPerPage" style="font-size: 0.85rem; color: var(--text-muted);">Show</label>
+                <select id="recEntriesPerPage" class="form-control" style="width: auto; padding: 4px 8px; border-radius: 6px;" onchange="recUpdatePagination()">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="all">All</option>
+                </select>
+                <label for="recEntriesPerPage" style="font-size: 0.85rem; color: var(--text-muted);">entries</label>
+            </div>
+
             <span style="font-size: 0.85rem; color: var(--text-muted);" id="recordsCount">
                 {{ records | length }} record{{ 's' if records | length != 1 else '' }} found
             </span>
@@ -103,6 +115,16 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Pagination UI -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; flex-wrap: wrap; gap: 12px; padding: 0 8px;">
+        <span style="font-size: 0.85rem; color: var(--text-muted);" id="recPaginationInfo">Showing 0 to 0 of 0 entries</span>
+        <div class="pagination" style="display: flex; gap: 4px;" id="recPaginationControls">
+            <button class="btn page-link" id="recPrevBtn" onclick="recChangePage(-1)" style="padding: 4px 12px; border-radius: var(--radius-md);"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+            <span id="recPageNumbers" style="display: flex; gap: 4px; align-items: center; margin: 0 8px; font-weight: 600; font-size: 0.9rem; color: var(--text-main);"></span>
+            <button class="btn page-link" id="recNextBtn" onclick="recChangePage(1)" style="padding: 4px 12px; border-radius: var(--radius-md);">Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
     </div>
 </div>
 
@@ -460,6 +482,75 @@
         }
     });
 
+    // ── Records Pagination ─────────────────────────────────────────────────────
+    let recCurrentPage = 1;
+    let recFilteredRows = [];
+
+    window.filterTable = function(tableId, query) {
+        query = query.toLowerCase();
+        const table = document.getElementById(tableId);
+        const tr = table.getElementsByTagName("tr");
+        recFilteredRows = [];
+        for (let i = 1; i < tr.length; i++) {
+            if (tr[i].getElementsByTagName("td").length > 1) {
+                const rowText = tr[i].textContent || tr[i].innerText;
+                if (rowText.toLowerCase().indexOf(query) > -1) {
+                    recFilteredRows.push(tr[i]);
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+        recCurrentPage = 1;
+        recUpdatePagination();
+    };
+
+    window.recUpdatePagination = function() {
+        const table = document.getElementById('recordsTable');
+        const tr = table.getElementsByTagName("tr");
+        if (recFilteredRows.length === 0 && document.getElementById('recordsSearch').value === '') {
+            for (let i = 1; i < tr.length; i++) {
+                if (tr[i].getElementsByTagName("td").length > 1) {
+                    recFilteredRows.push(tr[i]);
+                }
+            }
+        }
+        const select = document.getElementById('recEntriesPerPage');
+        const entries = select.value === 'all' ? recFilteredRows.length : parseInt(select.value);
+        const total = recFilteredRows.length;
+        const totalPages = Math.ceil(total / (entries || 1)) || 1;
+        if (recCurrentPage > totalPages) recCurrentPage = totalPages;
+        if (recCurrentPage < 1) recCurrentPage = 1;
+        const start = (recCurrentPage - 1) * entries;
+        const end = select.value === 'all' ? total : Math.min(start + entries, total);
+        recFilteredRows.forEach((row, idx) => {
+            row.style.display = (idx >= start && idx < end) ? "" : "none";
+        });
+        const info = document.getElementById('recPaginationInfo');
+        info.innerText = total === 0 ? "Showing 0 to 0 of 0 entries" : `Showing ${start + 1} to ${end} of ${total} entries`;
+        const counter = document.getElementById('recordsCount');
+        if (counter) counter.innerText = total + (total !== 1 ? ' records found' : ' record found');
+        const prevBtn = document.getElementById('recPrevBtn');
+        const nextBtn = document.getElementById('recNextBtn');
+        prevBtn.disabled = recCurrentPage === 1;
+        nextBtn.disabled = recCurrentPage === totalPages;
+        prevBtn.style.opacity = recCurrentPage === 1 ? '0.5' : '1';
+        nextBtn.style.opacity = recCurrentPage === totalPages ? '0.5' : '1';
+        prevBtn.style.pointerEvents = recCurrentPage === 1 ? 'none' : 'auto';
+        nextBtn.style.pointerEvents = recCurrentPage === totalPages ? 'none' : 'auto';
+        document.getElementById('recPageNumbers').innerText = `Page ${recCurrentPage} of ${totalPages}`;
+    };
+
+    window.recChangePage = function(dir) {
+        recCurrentPage += dir;
+        recUpdatePagination();
+    };
+
+    document.addEventListener("DOMContentLoaded", function() {
+        recUpdatePagination();
+    });
+
     // Table sorting logic
     function sortTable(n) {
         var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
@@ -487,7 +578,16 @@
                 
                 var xContent = x.textContent.toLowerCase().trim();
                 var yContent = y.textContent.toLowerCase().trim();
-                
+
+                // Date column (col 0): parse as date for correct ordering
+                if (n === 0) {
+                    var xDate = new Date(xContent);
+                    var yDate = new Date(yContent);
+                    if (!isNaN(xDate) && !isNaN(yDate)) {
+                        xContent = xDate;
+                        yContent = yDate;
+                    }
+                }
                 // For numeric columns like BP and Sugar, extract the first number to sort numerically
                 if (n === 2 || n === 3) {
                     var xNum = parseFloat(xContent.replace(/[^0-9.]/g, ''));

@@ -29,31 +29,37 @@
         </script>
         <div class="sidebar-header">
             <div class="sidebar-brand">
-                <img src="{{ url_for('static', filename='img/denr_logo.png') }}" alt="DENR Logo" style="height: 36px; width: auto;">
+                <img src="{{ url_for('static', filename='img/denr_logo.png') }}" alt="DENR Logo"
+                    style="height: 36px; width: auto;">
                 <span>CENRO Don Carlos<br>Health Monitor</span>
             </div>
         </div>
         <ul class="nav-links">
             <li class="nav-item">
-                <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}" title="Dashboard">
+                <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}"
+                    title="Dashboard">
                     <i class="fa-solid fa-house"></i>
                     <span class="nav-text">Dashboard</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{{ url_for('personnel') }}" class="{{ 'active' if request.endpoint == 'personnel' else '' }}" title="Personnel">
+                <a href="{{ url_for('personnel') }}" class="{{ 'active' if request.endpoint == 'personnel' else '' }}"
+                    title="Personnel">
                     <i class="fa-solid fa-users"></i>
                     <span class="nav-text">Personnel</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{{ url_for('records') }}" class="{{ 'active' if request.endpoint in ('records', 'add_record') else '' }}" title="Health Records">
+                <a href="{{ url_for('records') }}"
+                    class="{{ 'active' if request.endpoint in ('records', 'add_record') else '' }}"
+                    title="Health Records">
                     <i class="fa-solid fa-heart-pulse"></i>
                     <span class="nav-text">Health Records</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}" title="Reports">
+                <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}"
+                    title="Reports">
                     <i class="fa-solid fa-file-pdf"></i>
                     <span class="nav-text">Reports</span>
                 </a>
@@ -90,7 +96,8 @@
 
             <div class="user-profile" style="display: flex; align-items: center; gap: 16px;">
                 <!-- Theme Toggle Button -->
-                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode" style="color: var(--text-main); background: transparent; border: 1px solid var(--border);">
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode"
+                    style="color: var(--text-main); background: transparent; border: 1px solid var(--border);">
                     <i class="fa-solid fa-moon" id="themeIcon"></i>
                 </button>
                 {% if session.username %}
@@ -119,43 +126,43 @@
         <!-- Toast Container -->
         <div class="toast-container" id="toastContainer">
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                    <div class="toast toast-{{ category }}" role="alert">
-                        <div class="toast-icon">
-                            {% if category == 'success' %}
-                            <i class="fa-solid fa-circle-check"></i>
-                            {% elif category == 'danger' %}
-                            <i class="fa-solid fa-circle-exclamation"></i>
-                            {% elif category == 'warning' %}
-                            <i class="fa-solid fa-triangle-exclamation"></i>
-                            {% else %}
-                            <i class="fa-solid fa-circle-info"></i>
-                            {% endif %}
-                        </div>
-                        <div class="toast-content">
-                            <p class="toast-title" style="margin-bottom: 2px;">
-                                {% if category == 'success' %}Success
-                                {% elif category == 'danger' %}Error
-                                {% elif category == 'warning' %}Warning
-                                {% else %}Notification
-                                {% endif %}
-                            </p>
-                            <p class="toast-message">{{ message }}</p>
-                        </div>
-                        <button class="toast-close" onclick="closeToast(this.parentElement)">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                    {% endfor %}
-                {% endif %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="toast toast-{{ category }}" role="alert">
+                <div class="toast-icon">
+                    {% if category == 'success' %}
+                    <i class="fa-solid fa-circle-check"></i>
+                    {% elif category == 'danger' %}
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {% elif category == 'warning' %}
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    {% else %}
+                    <i class="fa-solid fa-circle-info"></i>
+                    {% endif %}
+                </div>
+                <div class="toast-content">
+                    <p class="toast-title" style="margin-bottom: 2px;">
+                        {% if category == 'success' %}Success
+                        {% elif category == 'danger' %}Error
+                        {% elif category == 'warning' %}Warning
+                        {% else %}Notification
+                        {% endif %}
+                    </p>
+                    <p class="toast-message">{{ message }}</p>
+                </div>
+                <button class="toast-close" onclick="closeToast(this.parentElement)">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            {% endfor %}
+            {% endif %}
             {% endwith %}
         </div>
 
-        <main class="main-content" style="flex: 1;">
+        <main class="animate-fade-in" style="flex: 1;">
             {% block content %}{% endblock %}
         </main>
-        
+
         <!-- Global Action Button (FAB) -->
         {% if session.role in ('admin', 'super_admin') %}
         <div class="fab-container">
@@ -168,12 +175,17 @@
         <!-- Global Delete Confirmation Modal -->
         <div id="deleteConfirmModal" class="modal" onclick="if(event.target===this) closeDeleteModal()">
             <div class="modal-content" style="max-width: 400px; text-align: center; padding: 30px 20px;">
-                <i class="fa-solid fa-triangle-exclamation" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
+                <i class="fa-solid fa-triangle-exclamation"
+                    style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
                 <h2 style="color: var(--text-main); margin-bottom: 12px;">Confirm Deletion</h2>
-                <p id="deleteConfirmText" style="color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem;">Are you sure you want to delete this?</p>
+                <p id="deleteConfirmText" style="color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem;">Are
+                    you sure you want to delete this?</p>
                 <div style="display: flex; gap: 12px; justify-content: center;">
-                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn" style="min-width: 120px;">Yes, Delete</button>
-                    <button type="button" class="btn" style="background-color: #E0E6E1; color: var(--text-main); min-width: 120px;" onclick="closeDeleteModal()">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn" style="min-width: 120px;">Yes,
+                        Delete</button>
+                    <button type="button" class="btn"
+                        style="background-color: #E0E6E1; color: var(--text-main); min-width: 120px;"
+                        onclick="closeDeleteModal()">Cancel</button>
                 </div>
             </div>
         </div>
@@ -210,7 +222,7 @@
             const table = document.getElementById(tableId);
             const tr = table.getElementsByTagName("tr");
             let count = 0;
-            
+
             for (let i = 1; i < tr.length; i++) {
                 if (tr[i].getElementsByTagName("td").length > 1) { // Skip empty state row
                     const rowText = tr[i].textContent || tr[i].innerText;
@@ -222,7 +234,7 @@
                     }
                 }
             }
-            
+
             // Update counter if it exists
             const counter = document.getElementById(tableId.replace('Table', 'Count'));
             if (counter) {
@@ -243,7 +255,7 @@
 
         // Setup loading states for standard form submits (except delete forms handled separately)
         document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', function(e) {
+            form.addEventListener('submit', function (e) {
                 if (!form.hasAttribute('onsubmit') || !form.getAttribute('onsubmit').includes('confirmDelete')) {
                     // Quick basic validation check to ensure form is valid before loading
                     if (form.checkValidity()) {
@@ -262,7 +274,7 @@
             document.getElementById('deleteConfirmText').innerText = text;
             document.getElementById('deleteConfirmModal').classList.add('show');
         }
-        
+
         function closeDeleteModal() {
             document.getElementById('deleteConfirmModal').classList.remove('show');
             if (currentDeleteBtn) {
@@ -272,7 +284,7 @@
             }
             formToSubmit = null;
         }
-        
+
         document.addEventListener('DOMContentLoaded', () => {
             const toasts = document.querySelectorAll('.toast');
             toasts.forEach((toast, index) => {
@@ -292,10 +304,10 @@
                 toastElement.remove();
             }, 400);
         }
-        
+
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         if (confirmDeleteBtn) {
-            confirmDeleteBtn.addEventListener('click', function() {
+            confirmDeleteBtn.addEventListener('click', function () {
                 if (formToSubmit) {
                     showLoadingState(this);
                     formToSubmit.submit();
@@ -304,7 +316,7 @@
         }
 
         // Global Escape Key listener to close modals
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 const openModals = document.querySelectorAll('.modal.show');
                 openModals.forEach(modal => {
@@ -332,7 +344,7 @@
                 icon.classList.add('fa-sun');
             }
         }
-        
+
         // Initialize Theme Icon
         window.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('theme') === 'dark') {

@@ -5,21 +5,24 @@
 
 {% block content %}
 <div class="stats-grid">
-    <div class="card stat-card interactive-card" data-url="{{ url_for('personnel') }}" onclick="window.location.href=this.dataset.url">
+    <div class="card stat-card interactive-card" data-url="{{ url_for('personnel') }}"
+        onclick="window.location.href=this.dataset.url">
         <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
         <div class="stat-details">
             <h3>Total Personnel</h3>
             <p>{{ total_personnel }}</p>
         </div>
     </div>
-    <div class="card stat-card interactive-card" data-url="{{ url_for('records') }}" onclick="window.location.href=this.dataset.url">
+    <div class="card stat-card interactive-card" data-url="{{ url_for('records') }}"
+        onclick="window.location.href=this.dataset.url">
         <div class="stat-icon"><i class="fa-solid fa-file-medical"></i></div>
         <div class="stat-details">
             <h3>Total Records</h3>
             <p>{{ total_records }}</p>
         </div>
     </div>
-    <div class="card stat-card interactive-card" onclick="document.getElementById('elevatedBpModal').classList.add('show')">
+    <div class="card stat-card interactive-card"
+        onclick="document.getElementById('elevatedBpModal').classList.add('show')">
         <div class="stat-icon" style="color: #F57F17; background-color: rgba(245, 127, 23, 0.1);"><i
                 class="fa-solid fa-triangle-exclamation"></i></div>
         <div class="stat-details">
@@ -35,21 +38,28 @@
             <p style="display: flex; align-items: baseline; gap: 8px;">
                 {{ checkups_this_month }}
                 {% if checkups_this_month > checkups_last_month %}
-                <span style="font-size: 0.85rem; font-weight: 600; color: var(--denr-green);" title="Increased from last month"><i class="fa-solid fa-arrow-trend-up"></i></span>
-                {% elif checkups_this_month < checkups_last_month %}
-                <span style="font-size: 0.85rem; font-weight: 600; color: var(--danger);" title="Decreased from last month"><i class="fa-solid fa-arrow-trend-down"></i></span>
-                {% else %}
-                <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);" title="Same as last month"><i class="fa-solid fa-minus"></i></span>
-                {% endif %}
+                <span style="font-size: 0.85rem; font-weight: 600; color: var(--denr-green);"
+                    title="Increased from last month"><i class="fa-solid fa-arrow-trend-up"></i></span>
+                {% elif checkups_this_month < checkups_last_month %} <span
+                    style="font-size: 0.85rem; font-weight: 600; color: var(--danger);"
+                    title="Decreased from last month"><i class="fa-solid fa-arrow-trend-down"></i></span>
+                    {% else %}
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);"
+                        title="Same as last month"><i class="fa-solid fa-minus"></i></span>
+                    {% endif %}
             </p>
         </div>
     </div>
     {% if at_risk_personnel or worsening_trends %}
-    <div class="card stat-card interactive-card glow-alert" onclick="document.getElementById('smartInsightsModal').classList.add('show')" style="background-color: #FFF8E1; border-color: #FFE082;">
-        <div class="stat-icon" style="color: #E65100; background-color: #FFE082;"><i class="fa-solid fa-lightbulb"></i></div>
+    <div class="card stat-card glow-alert" onclick="document.getElementById('smartInsightsModal').classList.add('show')"
+        style="cursor: pointer; background-color: #FFF8E1; border-color: #FFE082; transition: transform 0.2s;"
+        onmouseover="this.style.transform='translateY(-4px)';" onmouseout="this.style.transform='translateY(-2px)';">
+        <div class="stat-icon" style="color: #E65100; background-color: #FFE082;"><i class="fa-solid fa-lightbulb"></i>
+        </div>
         <div class="stat-details">
             <h3 style="color: #E65100;">Smart Insights</h3>
-            <p style="color: #E65100; font-size: 1.4rem; font-weight: 700;">{{ at_risk_personnel|length + worsening_trends|length }} Alerts</p>
+            <p style="color: #E65100; font-size: 1.4rem; font-weight: 700;">{{ at_risk_personnel|length +
+                worsening_trends|length }} Alerts</p>
         </div>
     </div>
     {% endif %}
@@ -80,21 +90,26 @@
     <div class="modal-content" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
         <div class="modal-header" style="border-bottom: 1px solid #FFE082; padding-bottom: 16px;">
             <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="width: 40px; height: 40px; border-radius: 50%; background: #FFF8E1; color: #E65100; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
+                <div
+                    style="width: 40px; height: 40px; border-radius: 50%; background: #FFF8E1; color: #E65100; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
                     <i class="fa-solid fa-shield-heart"></i>
                 </div>
                 <div>
                     <h2 style="margin: 0; color: #E65100; font-size: 1.3rem;">Smart Insights — Needs Attention</h2>
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">Based on latest readings per person</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Based on latest readings per
+                        person</span>
                 </div>
             </div>
-            <span class="close-modal" onclick="document.getElementById('smartInsightsModal').classList.remove('show')">&times;</span>
+            <span class="close-modal"
+                onclick="document.getElementById('smartInsightsModal').classList.remove('show')">&times;</span>
         </div>
         <div class="modal-body" style="padding-top: 20px;">
             {% if worsening_trends %}
             <div style="margin-bottom: 24px;">
-                <p style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
-                    <i class="fa-solid fa-arrow-trend-up" style="color: #BF360C;"></i> Worsening Trends (3 consecutive checks)
+                <p
+                    style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
+                    <i class="fa-solid fa-arrow-trend-up" style="color: #BF360C;"></i> Worsening Trends (3 consecutive
+                    checks)
                 </p>
                 <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                     {% for t in worsening_trends %}
@@ -109,17 +124,20 @@
 
             {% if at_risk_personnel %}
             <div style="margin-bottom: 10px;">
-                <p style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
+                <p
+                    style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
                     <i class="fa-solid fa-triangle-exclamation" style="color: #F57F17;"></i> At-Risk Personnel
                 </p>
                 <div style="display: flex; flex-direction: column; gap: 14px;">
                     {% for person in at_risk_personnel %}
                     {% set tip_class = 'tip-' + person.risk %}
                     <div class="at-risk-card risk-{{ person.risk }}" style="margin-bottom: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                             <div>
                                 <strong style="font-size: 1rem;">{{ person.name }}</strong>
-                                <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 10px;"><i class="fa-solid fa-calendar-day"></i> {{ person.date }}</span>
+                                <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 10px;"><i
+                                        class="fa-solid fa-calendar-day"></i> {{ person.date }}</span>
                             </div>
                             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                 <span class="badge badge-{{ person.risk }}">
@@ -204,12 +222,14 @@
     <div class="modal-content" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(245, 127, 23, 0.1); color: #F57F17; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                <div
+                    style="width: 40px; height: 40px; border-radius: 50%; background: rgba(245, 127, 23, 0.1); color: #F57F17; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
                 <h2 style="margin: 0; color: #E65100; font-size: 1.3rem;">Elevated BP Cases</h2>
             </div>
-            <span class="close-modal" onclick="document.getElementById('elevatedBpModal').classList.remove('show')">&times;</span>
+            <span class="close-modal"
+                onclick="document.getElementById('elevatedBpModal').classList.remove('show')">&times;</span>
         </div>
         <div class="modal-body">
             {% if elevated_bp_list %}
@@ -226,11 +246,13 @@
                         {% for case in elevated_bp_list %}
                         <tr>
                             <td>{{ case.record_date }}</td>
-                            <td><strong>{{ case.last_name }}, {{ case.first_name }} {{ case.middle_name[:1].upper() ~ '.' if case.middle_name else '' }}</strong></td>
+                            <td><strong>{{ case.last_name }}, {{ case.first_name }} {{ case.middle_name[:1].upper() ~
+                                    '.' if case.middle_name else '' }}</strong></td>
                             <td>
                                 {% set bp_lvl, bp_lbl, bp_emoji = get_bp_status(case.bp_systolic, case.bp_diastolic) %}
                                 {{ case.bp_systolic }}/{{ case.bp_diastolic }}
-                                <br><span class="badge badge-{{ bp_lvl }}" style="margin-top: 4px;">{{ bp_emoji }} {{ bp_lbl }}</span>
+                                <br><span class="badge badge-{{ bp_lvl }}" style="margin-top: 4px;">{{ bp_emoji }} {{
+                                    bp_lbl }}</span>
                             </td>
                         </tr>
                         {% endfor %}
@@ -242,12 +264,9 @@
             {% endif %}
         </div>
     </div>
-    <div id="chart-data" 
-         data-labels='{{ chart_labels | tojson | safe }}'
-         data-sys='{{ chart_data_sys | tojson | safe }}'
-         data-dia='{{ chart_data_dia | tojson | safe }}'
-         data-sugar='{{ sugar_data | tojson | safe }}'
-         style="display: none;"></div>
+    <div id="chart-data" data-labels='{{ chart_labels | tojson | safe }}'
+        data-sys='{{ chart_data_sys | tojson | safe }}' data-dia='{{ chart_data_dia | tojson | safe }}'
+        data-sugar='{{ sugar_data | tojson | safe }}' style="display: none;"></div>
 </div>
 {% endblock %}
 
@@ -324,7 +343,7 @@
     });
 
     // Close Modals on Escape key
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
             const modals = ['smartInsightsModal', 'elevatedBpModal'];
             modals.forEach(id => {
