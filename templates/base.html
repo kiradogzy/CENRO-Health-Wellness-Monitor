@@ -29,25 +29,25 @@
         </div>
         <ul class="nav-links">
             <li class="nav-item">
-                <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">
+                <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}" title="Dashboard">
                     <i class="fa-solid fa-house"></i>
                     <span class="nav-text">Dashboard</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{{ url_for('personnel') }}" class="{{ 'active' if request.endpoint == 'personnel' else '' }}">
+                <a href="{{ url_for('personnel') }}" class="{{ 'active' if request.endpoint == 'personnel' else '' }}" title="Personnel">
                     <i class="fa-solid fa-users"></i>
                     <span class="nav-text">Personnel</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{{ url_for('records') }}" class="{{ 'active' if request.endpoint == 'records' else '' }}">
+                <a href="{{ url_for('records') }}" class="{{ 'active' if request.endpoint in ('records', 'add_record') else '' }}" title="Health Records">
                     <i class="fa-solid fa-heart-pulse"></i>
                     <span class="nav-text">Health Records</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}">
+                <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' else '' }}" title="Reports">
                     <i class="fa-solid fa-file-pdf"></i>
                     <span class="nav-text">Reports</span>
                 </a>
@@ -55,7 +55,7 @@
             {% if session.role == 'super_admin' %}
             <li class="nav-item">
                 <a href="{{ url_for('manage_users') }}"
-                    class="{{ 'active' if request.endpoint == 'manage_users' else '' }}">
+                    class="{{ 'active' if request.endpoint == 'manage_users' else '' }}" title="Users">
                     <i class="fa-solid fa-user-gear"></i>
                     <span class="nav-text">Users</span>
                 </a>
@@ -67,7 +67,7 @@
     <main class="main-content">
         <header class="page-header" style="position: relative;">
             <div style="display: flex; align-items: center; gap: 16px;">
-                <button id="sidebarToggle" class="btn"
+                <button id="sidebarToggle" class="btn" aria-label="Toggle Sidebar"
                     style="background-color: transparent; color: var(--text-main); font-size: 1.5rem; padding: 4px 8px; box-shadow: none;">
                     <i class="fa-solid fa-bars"></i>
                 </button>
@@ -106,26 +106,56 @@
             </div>
         </header>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">
-                {% if category == 'success' %}
-                <i class="fa-solid fa-circle-check"></i>
-                {% elif category == 'danger' %}
-                <i class="fa-solid fa-circle-exclamation"></i>
-                {% else %}
-                <i class="fa-solid fa-circle-info"></i>
+        <!-- Toast Container -->
+        <div class="toast-container" id="toastContainer">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="toast toast-{{ category }}" role="alert">
+                        <div class="toast-icon">
+                            {% if category == 'success' %}
+                            <i class="fa-solid fa-circle-check"></i>
+                            {% elif category == 'danger' %}
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            {% elif category == 'warning' %}
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            {% else %}
+                            <i class="fa-solid fa-circle-info"></i>
+                            {% endif %}
+                        </div>
+                        <div class="toast-content">
+                            <p class="toast-title" style="margin-bottom: 2px;">
+                                {% if category == 'success' %}Success
+                                {% elif category == 'danger' %}Error
+                                {% elif category == 'warning' %}Warning
+                                {% else %}Notification
+                                {% endif %}
+                            </p>
+                            <p class="toast-message">{{ message }}</p>
+                        </div>
+                        <button class="toast-close" onclick="closeToast(this.parentElement)">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
                 {% endif %}
-                {{ message }}
-            </div>
-            {% endfor %}
+            {% endwith %}
         </div>
-        {% endif %}
-        {% endwith %}
 
         {% block content %}{% endblock %}
+        
+        <!-- Global Delete Confirmation Modal -->
+        <div id="deleteConfirmModal" class="modal" onclick="if(event.target===this) closeDeleteModal()">
+            <div class="modal-content" style="max-width: 400px; text-align: center; padding: 30px 20px;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
+                <h2 style="color: var(--text-main); margin-bottom: 12px;">Confirm Deletion</h2>
+                <p id="deleteConfirmText" style="color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem;">Are you sure you want to delete this?</p>
+                <div style="display: flex; gap: 12px; justify-content: center;">
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn" style="min-width: 120px;">Yes, Delete</button>
+                    <button type="button" class="btn" style="background-color: #E0E6E1; color: var(--text-main); min-width: 120px;" onclick="closeDeleteModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -152,6 +182,105 @@
                 });
             }
         });
+
+        // Search Filter Logic
+        function filterTable(tableId, query) {
+            query = query.toLowerCase();
+            const table = document.getElementById(tableId);
+            const tr = table.getElementsByTagName("tr");
+            let count = 0;
+            
+            for (let i = 1; i < tr.length; i++) {
+                if (tr[i].getElementsByTagName("td").length > 1) { // Skip empty state row
+                    const rowText = tr[i].textContent || tr[i].innerText;
+                    if (rowText.toLowerCase().indexOf(query) > -1) {
+                        tr[i].style.display = "";
+                        count++;
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }
+            }
+            
+            // Update counter if it exists
+            const counter = document.getElementById(tableId.replace('Table', 'Count'));
+            if (counter) {
+                counter.innerText = count + ' record' + (count !== 1 ? 's' : '') + ' found';
+            }
+        }
+
+        // Global Loading State function
+        function showLoadingState(btn) {
+            if (!btn) return;
+            const originalWidth = btn.offsetWidth;
+            btn.style.width = originalWidth + 'px';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            btn.classList.add('disabled');
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.8';
+        }
+
+        // Setup loading states for standard form submits (except delete forms handled separately)
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                if (!form.hasAttribute('onsubmit') || !form.getAttribute('onsubmit').includes('confirmDelete')) {
+                    // Quick basic validation check to ensure form is valid before loading
+                    if (form.checkValidity()) {
+                        const submitBtn = form.querySelector('button[type="submit"]');
+                        showLoadingState(submitBtn);
+                    }
+                }
+            });
+        });
+
+        // Global Delete Confirmation Logic
+        let formToSubmit = null;
+        function confirmDelete(event, form, text) {
+            event.preventDefault();
+            formToSubmit = form;
+            document.getElementById('deleteConfirmText').innerText = text;
+            document.getElementById('deleteConfirmModal').classList.add('show');
+        }
+        
+        function closeDeleteModal() {
+            document.getElementById('deleteConfirmModal').classList.remove('show');
+            if (currentDeleteBtn) {
+                currentDeleteBtn.disabled = false;
+                currentDeleteBtn.innerHTML = currentDeleteBtn.dataset.originalContent;
+                currentDeleteBtn = null;
+            }
+            formToSubmit = null;
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach((toast, index) => {
+                setTimeout(() => {
+                    toast.classList.add('show');
+                    setTimeout(() => {
+                        closeToast(toast);
+                    }, 5000);
+                }, index * 150);
+            });
+        });
+
+        function closeToast(toastElement) {
+            toastElement.classList.remove('show');
+            toastElement.classList.add('hide');
+            setTimeout(() => {
+                toastElement.remove();
+            }, 400);
+        }
+        
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        if (confirmDeleteBtn) {
+            confirmDeleteBtn.addEventListener('click', function() {
+                if (formToSubmit) {
+                    showLoadingState(this);
+                    formToSubmit.submit();
+                }
+            });
+        }
     </script>
     {% block scripts %}{% endblock %}
 </body>

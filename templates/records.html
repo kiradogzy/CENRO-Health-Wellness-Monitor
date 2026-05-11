@@ -1,123 +1,119 @@
 {% extends 'base.html' %}
 
 {% block title %}Health Records{% endblock %}
-{% block page_title %}Health Records Management{% endblock %}
+{% block page_title %}All Health Records{% endblock %}
 
 {% block content %}
-<div class="grid-2-cols">
-    <!-- Add Form -->
-    <div>
-        <div class="card">
-            <h2 style="margin-bottom: 10px; color: var(--denr-green-dark); font-size: 1.5rem;">Add Health Record</h2>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">All fields with <span style="color: var(--danger);">*</span> are required.</p>
-            <form action="{{ url_for('records') }}" method="POST" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label class="form-label">Select Personnel <span style="color: var(--danger);">*</span></label>
-                    <select name="personnel_id" class="form-control">
-                        <option value="" disabled selected>-- Select Personnel --</option>
-                        {% for p in personnel %}
-                        <option value="{{ p.id }}">{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Date of Checkup <span style="color: var(--danger);">*</span></label>
-                    <input type="date" name="record_date" class="form-control">
-                </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label class="form-label">Systolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
-                        <input type="number" name="bp_systolic" class="form-control" placeholder="e.g. 120">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Diastolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
-                        <input type="number" name="bp_diastolic" class="form-control" placeholder="e.g. 80">
-                    </div>
-                </div>
+{# Top bar: Add button (admin only) #}
+{% if session.role in ('admin', 'super_admin') %}
+<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+    <button class="btn btn-primary" onclick="openAddModal()">
+        <i class="fa-solid fa-plus"></i> Add New Record
+    </button>
+</div>
+{% endif %}
 
-                <div class="form-group">
-                    <label class="form-label">Blood Sugar Level (mg/dL) <span style="color: var(--danger);">*</span></label>
-                    <input type="number" step="0.1" name="sugar_level" class="form-control" placeholder="e.g. 95.5">
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Notes / Remarks</label>
-                    <textarea name="notes" class="form-control" rows="3" placeholder="Optional remarks..." oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Evidence Photo (Optional)</label>
-                    <input type="file" name="evidence_photo" accept="image/*" class="form-control" style="padding: 8px 16px;">
-                </div>
-
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    <i class="fa-solid fa-save"></i> Save Record
-                </button>
-            </form>
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <h2 style="color: var(--denr-green-dark); font-size: 1.4rem; margin: 0;">
+            <i class="fa-solid fa-table-list" style="margin-right: 10px; color: var(--denr-green);"></i>Health Records
+        </h2>
+        <div style="display: flex; gap: 16px; align-items: center; margin-left: auto;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);" id="recordsCount">
+                {{ records | length }} record{{ 's' if records | length != 1 else '' }} found
+            </span>
+            <div style="position: relative; width: 250px;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                <input type="text" id="recordsSearch" class="form-control" placeholder="Search records..." style="padding-left: 36px;" onkeyup="filterTable('recordsTable', this.value)">
+            </div>
         </div>
     </div>
 
-    <!-- Records List -->
-    <div>
-        <div class="card">
-            <h2 style="margin-bottom: 20px; color: var(--denr-green-dark); font-size: 1.5rem;">All Records</h2>
-            <div class="table-container" style="max-height: 600px; overflow-y: auto;">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Name</th>
-                            <th>BP (mmHg)</th>
-                            <th>Sugar (mg/dL)</th>
-                            <th>Evidence</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for r in records %}
-                        <tr>
-                            <td>{{ r.record_date }}</td>
-                            <td><strong>{{ r.last_name }}, {{ r.first_name }} {{ r.middle_name[:1].upper() ~ '.' if r.middle_name else '' }}</strong></td>
-                            <td>{{ r.bp_systolic }}/{{ r.bp_diastolic }}</td>
-                            <td>{{ r.sugar_level }}</td>
-                            <td>
-                                {% if r.evidence_photo %}
-                                <button type="button" class="btn" style="padding: 4px 8px; font-size: 0.8rem; background-color: #E8F5E9; color: var(--denr-green);" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')">
-                                    <i class="fa-solid fa-image"></i> View
-                                </button>
-                                {% else %}
-                                <span style="color: var(--text-muted); font-size: 0.85rem;">None</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <button type="button" class="btn" style="padding: 6px 12px; background-color: var(--denr-gold); color: var(--denr-green-dark); font-size: 0.85rem;" onclick="document.getElementById('editModal{{ r.id }}').classList.add('show')">
-                                    <i class="fa-solid fa-pen-to-square"></i> Edit
-                                </button>
-                            </td>
-                        </tr>
-
+    <div class="table-container">
+        <table class="table" id="recordsTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">Date <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i></th>
+                    <th onclick="sortTable(1)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">Name <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i></th>
+                    <th onclick="sortTable(2)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">BP (mmHg) <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i></th>
+                    <th onclick="sortTable(3)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">Sugar (mg/dL) <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i></th>
+                    <th onclick="sortTable(4)" class="insight-col" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">Health Status <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i></th>
+                    <th>Evidence</th>
+                    {% if session.role in ('admin', 'super_admin') %}
+                    <th>Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in records %}
+                {% set bp_lvl, bp_lbl, bp_emoji = get_bp_status(r.bp_systolic, r.bp_diastolic) %}
+                {% set sug_lvl, sug_lbl, sug_emoji = get_sugar_status(r.sugar_level) %}
+                {% set overall = get_overall_risk(bp_lvl, sug_lvl) %}
+                {% set tip = get_health_tip(bp_lvl, sug_lvl) %}
+                <tr>
+                    <td>{{ r.record_date }}</td>
+                    <td><strong>{{ r.last_name }}, {{ r.first_name }} {{ r.middle_name[:1].upper() ~ '.' if r.middle_name else '' }}</strong></td>
+                    <td>
+                        {{ r.bp_systolic }}/{{ r.bp_diastolic }}
+                        <br><span class="badge badge-{{ bp_lvl }}" style="margin-top: 4px;">{{ bp_emoji }} {{ bp_lbl }}</span>
+                    </td>
+                    <td>
+                        {{ r.sugar_level }}
+                        <br><span class="badge badge-{{ sug_lvl }}" style="margin-top: 4px;">{{ sug_emoji }} {{ sug_lbl }}</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ overall }}" style="font-size: 0.75rem; display: block; margin-bottom: 6px;">
+                            {% if overall == 'success' %}✅ All Good
+                            {% elif overall == 'warning' %}⚠️ Monitor
+                            {% elif overall == 'danger' %}🔴 At Risk
+                            {% else %}🚨 Critical{% endif %}
+                        </span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.3; display: block;">{{ tip }}</span>
+                    </td>
+                    <td>
+                        {% if r.evidence_photo %}
+                        <button type="button" class="btn" style="padding: 4px 8px; font-size: 0.8rem; background-color: #E8F5E9; color: var(--denr-green);" onclick="openImageModal('{{ url_for('static', filename='uploads/evidence/' ~ r.evidence_photo) }}')">
+                            <i class="fa-solid fa-image"></i> View
+                        </button>
                         {% else %}
-                        <tr>
-                            <td colspan="5" style="text-align: center; color: var(--text-muted);">No health records yet.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                        <span style="color: var(--text-muted); font-size: 0.85rem;">None</span>
+                        {% endif %}
+                    </td>
+                    {% if session.role in ('admin', 'super_admin') %}
+                    <td>
+                        <button type="button" class="btn" style="padding: 6px 12px; background-color: var(--denr-gold); color: var(--denr-green-dark); font-size: 0.85rem;" onclick="openEditModal('{{ r.id }}')">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                        <div style="padding: 20px;">
+                            <i class="fa-solid fa-notes-medical" style="font-size: 3rem; color: var(--denr-green); opacity: 0.5; margin-bottom: 15px; display: block;"></i>
+                            <h3 style="margin-bottom: 8px; color: var(--text-main);">No Health Records Found</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">There are currently no health records in the system. Click "Add New Record" to get started.</p>
+                        </div>
+
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
 {% if session.role in ('admin', 'super_admin') %}
-<!-- Edit Modals (outside layout wrappers to prevent z-index/flickering issues) -->
+<!-- Edit Modals -->
 {% for r in records %}
 <div id="editModal{{ r.id }}" class="modal">
     <div class="modal-content">
         <div class="modal-header">
             <h2>Edit Record: {{ r.first_name }} {{ r.middle_name[:1].upper() ~ '. ' if r.middle_name else '' }}{{ r.last_name }}</h2>
-            <span class="close-modal" onclick="document.getElementById('editModal{{ r.id }}').classList.remove('show')">&times;</span>
+            <span class="close-modal" aria-label="Close" onclick="document.getElementById('editModal{{ r.id }}').classList.remove('show')">&times;</span>
         </div>
         <div class="modal-body">
             <form action="{{ url_for('edit_record', id=r.id) }}" method="POST" enctype="multipart/form-data">
@@ -177,7 +173,7 @@
                 </div>
             </form>
 
-            <form action="{{ url_for('delete_record', id=r.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to completely delete this record? This action cannot be undone.');" style="margin-top: 12px;">
+            <form action="{{ url_for('delete_record', id=r.id) }}" method="POST" onsubmit="confirmDelete(event, this, 'Are you sure you want to completely delete this record? This action cannot be undone.');" style="margin-top: 12px;">
                 <button type="submit" class="btn btn-danger" style="width: 100%; background-color: #FFF0F0; color: var(--danger); border: 1px solid #FFCDD2;">
                     <i class="fa-solid fa-trash"></i> Delete Record
                 </button>
@@ -186,6 +182,89 @@
     </div>
 </div>
 {% endfor %}
+{% endif %}
+
+{# ─── Add Record Modal ──────────────────────────────────────────────────────── #}
+{% if session.role in ('admin', 'super_admin') %}
+<div id="addRecordModal" class="modal" onclick="if(event.target===this) closeAddModal()">
+    <div class="modal-content" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(46,125,50,0.1); color: var(--denr-green); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
+                    <i class="fa-solid fa-notes-medical"></i>
+                </div>
+                <h2 style="margin: 0;">New Health Record</h2>
+            </div>
+            <span class="close-modal" aria-label="Close" onclick="closeAddModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 18px;">All fields marked <span style="color: var(--danger);">*</span> are required.</p>
+            <form id="addRecordForm" action="{{ url_for('add_record') }}" method="POST" enctype="multipart/form-data">
+
+                <div class="form-group">
+                    <label class="form-label">Select Personnel <span style="color: var(--danger);">*</span></label>
+                    <select name="personnel_id" id="add_personnel_id" class="form-control" required>
+                        <option value="" disabled selected>-- Select Personnel --</option>
+                        {% for p in personnel %}
+                        <option value="{{ p.id }}">{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Date of Checkup <span style="color: var(--danger);">*</span></label>
+                    <input type="date" id="add_record_date" name="record_date" class="form-control" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Systolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
+                        <input type="number" id="add_bp_systolic" name="bp_systolic" class="form-control" placeholder="e.g. 120" min="60" max="300" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Diastolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
+                        <input type="number" id="add_bp_diastolic" name="bp_diastolic" class="form-control" placeholder="e.g. 80" min="40" max="200" required>
+                    </div>
+                </div>
+
+                {# Live BP preview #}
+                <div id="add-bp-preview" style="display:none; margin:-8px 0 16px; padding:10px 14px; border-radius:10px; font-size:0.83rem; font-weight:600; transition: all 0.3s;">
+                    <i class="fa-solid fa-heart-pulse"></i> <span id="add-bp-preview-text"></span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Blood Sugar Level (mg/dL) <span style="color: var(--danger);">*</span></label>
+                    <input type="number" id="add_sugar_level" step="0.1" name="sugar_level" class="form-control" placeholder="e.g. 95.5" min="20" max="700" required>
+                </div>
+
+                {# Live Sugar preview #}
+                <div id="add-sugar-preview" style="display:none; margin:-8px 0 16px; padding:10px 14px; border-radius:10px; font-size:0.83rem; font-weight:600; transition: all 0.3s;">
+                    <i class="fa-solid fa-droplet"></i> <span id="add-sugar-preview-text"></span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes / Remarks</label>
+                    <textarea name="notes" class="form-control" rows="2" placeholder="Optional remarks..."
+                        oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Evidence Photo <span style="color: var(--text-muted); font-weight:400;">(Optional)</span></label>
+                    <input type="file" name="evidence_photo" accept="image/*" class="form-control" style="padding: 8px 16px;">
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 8px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 2;">
+                        <i class="fa-solid fa-save"></i> Save Record
+                    </button>
+                    <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="closeAddModal()">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 {% endblock %}
@@ -199,7 +278,7 @@
                 <button type="button" class="btn" style="padding: 4px 12px; background: white; color: black; min-width: auto;" onclick="zoomImage(0.2)" title="Zoom In"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
                 <button type="button" class="btn" style="padding: 4px 12px; background: white; color: black; min-width: auto;" onclick="zoomImage(-0.2)" title="Zoom Out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
                 <button type="button" class="btn" style="padding: 4px 12px; background: white; color: black; min-width: auto;" onclick="resetZoom()" title="Reset Zoom"><i class="fa-solid fa-expand"></i></button>
-                <span class="close-modal" style="color: white; font-size: 1.8rem; margin-left: 16px; cursor: pointer; line-height: 1;" onclick="closeImageModal()">&times;</span>
+                <span class="close-modal" aria-label="Close" style="color: white; font-size: 1.8rem; margin-left: 16px; cursor: pointer; line-height: 1;" onclick="closeImageModal()">&times;</span>
             </div>
         </div>
         <div style="width: 100%; height: 80vh; overflow: auto; display: flex; align-items: center; justify-content: center;">
@@ -237,7 +316,6 @@
         document.getElementById('viewerImage').style.transform = `scale(${currentZoom})`;
     }
 
-    // Photo deletion functions for Edit Modal
     function markPhotoForDeletion(recordId) {
         document.getElementById('deletePhotoFlag' + recordId).value = '1';
         document.getElementById('photoRow' + recordId).style.display = 'none';
@@ -250,17 +328,195 @@
         document.getElementById('photoDeletedNotice' + recordId).style.display = 'none';
     }
 
-    // Add mouse wheel zoom support
     document.getElementById('imageViewerModal').addEventListener('wheel', function(e) {
-        // Only zoom if scrolling on the image area
         if (e.target.id === 'viewerImage') {
             e.preventDefault();
-            if (e.deltaY < 0) {
-                zoomImage(0.15);
-            } else {
-                zoomImage(-0.15);
-            }
+            if (e.deltaY < 0) { zoomImage(0.15); } else { zoomImage(-0.15); }
         }
     }, {passive: false});
+
+    // ─── Add Record Modal ───────────────────────────────────────────────────
+    function openAddModal() {
+        document.getElementById('addRecordModal').classList.add('show');
+        setTimeout(() => document.getElementById('add_personnel_id').focus(), 100);
+    }
+
+    function openEditModal(id) {
+        document.getElementById('editModal' + id).classList.add('show');
+        setTimeout(() => document.querySelector('#editModal' + id + ' input[name="record_date"]').focus(), 100);
+    }
+
+    function closeAddModal() {
+        document.getElementById('addRecordModal').classList.remove('show');
+    }
+
+    // Close Add modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeAddModal();
+            closeImageModal();
+        }
+    });
+
+    // Live preview helpers
+    const previewStyles = {
+        normal:   { bg: '#E8F5E9', color: '#1B5E20', border: '#A5D6A7' },
+        elevated: { bg: '#FFFDE7', color: '#E65100', border: '#FFE082' },
+        stage1:   { bg: '#FFF3E0', color: '#BF360C', border: '#FFAB91' },
+        danger:   { bg: '#FFEBEE', color: '#B71C1C', border: '#EF9A9A' },
+        critical: { bg: '#4A0000', color: '#fff',    border: '#7F0000' },
+    };
+
+    function applyPreview(previewEl, textEl, result) {
+        if (!result) { previewEl.style.display = 'none'; return; }
+        const s = previewStyles[result.cls] || previewStyles.normal;
+        previewEl.style.display = 'block';
+        previewEl.style.background = s.bg;
+        previewEl.style.color = s.color;
+        previewEl.style.border = '1px solid ' + s.border;
+        textEl.textContent = result.label;
+    }
+
+    function classifyBP(sys, dia) {
+        if (!sys || !dia) return null;
+        if (sys >= 180 || dia >= 120) return { label: '🚨 Hypertensive Crisis — Seek emergency care NOW!', cls: 'critical' };
+        if (sys >= 140 || dia >= 90)  return { label: '🔴 Stage 2 Hypertension — Please see a doctor promptly.', cls: 'danger' };
+        if (sys >= 130 || dia >= 80)  return { label: '🟠 Stage 1 Hypertension — Monitor daily and reduce stress.', cls: 'stage1' };
+        if (sys >= 120)               return { label: '⚠️ Elevated BP — Reduce salt and caffeine intake.', cls: 'elevated' };
+        return                               { label: '✅ Normal BP — Keep up the great work!', cls: 'normal' };
+    }
+
+    function classifySugar(val) {
+        if (!val) return null;
+        if (val >= 126) return { label: '🔴 Diabetic Range — Please consult a physician soon.', cls: 'danger' };
+        if (val >= 100) return { label: '⚠️ Pre-Diabetic — Limit rice, sugary drinks, and sweets.', cls: 'elevated' };
+        return                 { label: '✅ Normal Sugar Level — Great reading!', cls: 'normal' };
+    }
+
+    function updateAddBPPreview() {
+        const sysInput = document.getElementById('add_bp_systolic');
+        const diaInput = document.getElementById('add_bp_diastolic');
+        const sys = parseInt(sysInput.value);
+        const dia = parseInt(diaInput.value);
+        const classification = classifyBP(sys, dia);
+        
+        applyPreview(
+            document.getElementById('add-bp-preview'),
+            document.getElementById('add-bp-preview-text'),
+            classification
+        );
+
+        // Visual Validation
+        if (classification && (classification.cls === 'danger' || classification.cls === 'critical')) {
+            sysInput.style.borderColor = 'var(--danger)';
+            diaInput.style.borderColor = 'var(--danger)';
+        } else if (classification && (classification.cls === 'stage1' || classification.cls === 'elevated')) {
+            sysInput.style.borderColor = '#FBC02D';
+            diaInput.style.borderColor = '#FBC02D';
+        } else if (classification) {
+            sysInput.style.borderColor = 'var(--denr-green)';
+            diaInput.style.borderColor = 'var(--denr-green)';
+        } else {
+            sysInput.style.borderColor = '';
+            diaInput.style.borderColor = '';
+        }
+    }
+
+    function updateAddSugarPreview() {
+        const sugInput = document.getElementById('add_sugar_level');
+        const val = parseFloat(sugInput.value);
+        const classification = classifySugar(val);
+        
+        applyPreview(
+            document.getElementById('add-sugar-preview'),
+            document.getElementById('add-sugar-preview-text'),
+            classification
+        );
+
+        // Visual Validation
+        if (classification && classification.cls === 'danger') {
+            sugInput.style.borderColor = 'var(--danger)';
+        } else if (classification && classification.cls === 'elevated') {
+            sugInput.style.borderColor = '#FBC02D';
+        } else if (classification) {
+            sugInput.style.borderColor = 'var(--denr-green)';
+        } else {
+            sugInput.style.borderColor = '';
+        }
+    }
+
+    document.getElementById('add_bp_systolic').addEventListener('input', updateAddBPPreview);
+    document.getElementById('add_bp_diastolic').addEventListener('input', updateAddBPPreview);
+    document.getElementById('add_sugar_level').addEventListener('input', updateAddSugarPreview);
+
+    // Table sorting logic
+    function sortTable(n) {
+        var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+        table = document.getElementById("recordsTable");
+        switching = true;
+        dir = "asc"; 
+        
+        // Reset sort icons
+        const headers = table.querySelectorAll('th i.fa-sort, th i.fa-sort-up, th i.fa-sort-down');
+        headers.forEach(i => {
+            i.className = 'fa-solid fa-sort';
+            i.style.color = 'var(--text-muted)';
+        });
+        
+        while (switching) {
+            switching = false;
+            rows = table.rows;
+            for (i = 1; i < (rows.length - 1); i++) {
+                shouldSwitch = false;
+                x = rows[i].getElementsByTagName("TD")[n];
+                y = rows[i + 1].getElementsByTagName("TD")[n];
+                
+                if (!x || !y) continue;
+                if (x.colSpan > 1) continue;
+                
+                var xContent = x.textContent.toLowerCase().trim();
+                var yContent = y.textContent.toLowerCase().trim();
+                
+                // For numeric columns like BP and Sugar, extract the first number to sort numerically
+                if (n === 2 || n === 3) {
+                    var xNum = parseFloat(xContent.replace(/[^0-9.]/g, ''));
+                    var yNum = parseFloat(yContent.replace(/[^0-9.]/g, ''));
+                    if (!isNaN(xNum) && !isNaN(yNum)) {
+                        xContent = xNum;
+                        yContent = yNum;
+                    }
+                }
+                
+                if (dir == "asc") {
+                    if (xContent > yContent) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                } else if (dir == "desc") {
+                    if (xContent < yContent) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+            }
+            if (shouldSwitch) {
+                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                switching = true;
+                switchcount ++;      
+            } else {
+                if (switchcount == 0 && dir == "asc") {
+                    dir = "desc";
+                    switching = true;
+                }
+            }
+        }
+
+        // Set the active sort icon
+        const activeHeaderIcon = table.getElementsByTagName("TH")[n].querySelector('i');
+        if (activeHeaderIcon) {
+            activeHeaderIcon.className = dir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+            activeHeaderIcon.style.color = 'var(--denr-green)';
+        }
+    }
 </script>
 {% endblock %}

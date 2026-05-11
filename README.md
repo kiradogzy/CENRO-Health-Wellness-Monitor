@@ -92,3 +92,4 @@ This system was developed for internal government use by CENRO Don Carlos, DENR.
 ---
 
 *Developed by: Edgest Yaneigh N. Agbayani*
+*Contributor: Van Kendrick O. Caseres, John Andrei Dela Pena*

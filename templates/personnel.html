@@ -4,82 +4,75 @@
 {% block page_title %}Personnel Management{% endblock %}
 
 {% block content %}
-<div class="{% if session.role in ('admin', 'super_admin') %}grid-2-cols{% endif %}">
-    {% if session.role in ('admin', 'super_admin') %}
-    <!-- Add Form -->
-    <div>
-        <div class="card">
-            <h2 style="margin-bottom: 10px; color: var(--denr-green-dark); font-size: 1.5rem;">Add New Personnel</h2>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">All fields with <span style="color: var(--danger);">*</span> are required.</p>
-            <form action="{{ url_for('personnel') }}" method="POST">
-                <div class="form-group">
-                    <label class="form-label">First Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="first_name" class="form-control" placeholder="e.g. Juan" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Middle Name</label>
-                    <input type="text" name="middle_name" class="form-control" placeholder="e.g. Santos (Optional)" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Last Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="last_name" class="form-control" placeholder="e.g. Dela Cruz" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Designation / Role <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="designation" class="form-control" placeholder="e.g. Forest Ranger" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    <i class="fa-solid fa-plus"></i> Add Personnel
-                </button>
-            </form>
-        </div>
-    </div>
-    {% endif %}
+{% if session.role in ('admin', 'super_admin') %}
+<div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+    <button class="btn btn-primary" onclick="openAddPersonnelModal()">
+        <i class="fa-solid fa-plus"></i> Add New Personnel
+    </button>
+</div>
+{% endif %}
 
-    <!-- Personnel List -->
-    <div>
-        <div class="card">
-            <h2 style="margin-bottom: 20px; color: var(--denr-green-dark); font-size: 1.5rem;">CDC Personnel List</h2>
-            <div class="table-container">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Designation</th>
-                            <th>Date Added</th>
-                            {% if session.role in ('admin', 'super_admin') %}
-                            <th>Actions</th>
-                            {% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in personnel %}
-                        <tr>
-                            <td><strong>{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</strong></td>
-                            <td>{{ p.designation }}</td>
-                            <td>{{ p.date_added.split(' ')[0] }}</td>
-                            {% if session.role in ('admin', 'super_admin') %}
-                            <td>
-                                <button type="button" class="btn" style="padding: 6px 12px; background-color: var(--denr-gold); color: var(--denr-green-dark); font-size: 0.85rem;" onclick="document.getElementById('editPersonnelModal{{ p.id }}').classList.add('show')">
-                                    <i class="fa-solid fa-pen-to-square"></i> Edit
-                                </button>
-                                <form action="{{ url_for('delete_personnel', id=p.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this personnel and all their health records? This action cannot be undone.');">
-                                    <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">
-                                        <i class="fa-solid fa-trash"></i> Delete
-                                    </button>
-                                </form>
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="4" style="text-align: center; color: var(--text-muted);">No personnel added yet.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <h2 style="margin: 0; color: var(--denr-green-dark); font-size: 1.5rem;">
+            <i class="fa-solid fa-address-book" style="margin-right: 10px; color: var(--denr-green);"></i>CDC Personnel List
+        </h2>
+        <div style="display: flex; gap: 16px; align-items: center; margin-left: auto;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);" id="personnelCount">
+                {{ personnel | length }} personnel found
+            </span>
+            <div style="position: relative; width: 250px;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                <input type="text" id="personnelSearch" class="form-control" placeholder="Search personnel..." style="padding-left: 36px;" onkeyup="filterTable('personnelTable', this.value)">
             </div>
         </div>
+    </div>
+
+    <div class="table-container">
+        <table class="table" id="personnelTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                        Name <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
+                    </th>
+                    <th onclick="sortTable(1)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                        Designation <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
+                    </th>
+                    <th onclick="sortTable(2)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                        Date Added <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
+                    </th>
+                    {% if session.role in ('admin', 'super_admin') %}
+                    <th>Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in personnel %}
+                <tr>
+                    <td><strong>{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</strong></td>
+                    <td>{{ p.designation }}</td>
+                    <td>{{ p.date_added.split(' ')[0] }}</td>
+                    {% if session.role in ('admin', 'super_admin') %}
+                    <td>
+                        <button type="button" class="btn" style="padding: 6px 12px; background-color: var(--denr-gold); color: var(--denr-green-dark); font-size: 0.85rem;" onclick="openEditPersonnelModal('{{ p.id }}')">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                        <div style="padding: 20px;">
+                            <i class="fa-solid fa-users-slash" style="font-size: 3rem; color: var(--denr-green); opacity: 0.5; margin-bottom: 15px; display: block;"></i>
+                            <h3 style="margin-bottom: 8px; color: var(--text-main);">No Personnel Added Yet</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">There are currently no personnel records in the system. Click "Add New Personnel" to get started.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -90,7 +83,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h2>Edit Personnel: {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '. ' if p.middle_name else '' }}{{ p.last_name }}</h2>
-            <span class="close-modal" onclick="document.getElementById('editPersonnelModal{{ p.id }}').classList.remove('show')">&times;</span>
+            <span class="close-modal" aria-label="Close" onclick="document.getElementById('editPersonnelModal{{ p.id }}').classList.remove('show')">&times;</span>
         </div>
         <div class="modal-body">
             <form action="{{ url_for('edit_personnel', id=p.id) }}" method="POST">
@@ -117,8 +110,8 @@
                     <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="document.getElementById('editPersonnelModal{{ p.id }}').classList.remove('show')">Cancel</button>
                 </div>
             </form>
-            <form action="{{ url_for('delete_personnel', id=p.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to completely delete this personnel? This will also delete ALL of their health records. This action cannot be undone.');" style="margin-top: 12px;">
-                <button type="submit" class="btn" style="width: 100%; background-color: #FFF0F0; color: var(--danger); border: 1px solid #FFCDD2;">
+            <form action="{{ url_for('delete_personnel', id=p.id) }}" method="POST" data-name="{{ p.first_name }} {{ p.last_name }}" onsubmit="confirmDelete(event, this, 'Are you sure you want to completely delete ' + this.getAttribute('data-name') + '? This will also delete ALL of their health records. This action cannot be undone.');" style="margin-top: 12px;">
+                <button type="submit" class="btn btn-danger" style="width: 100%; background-color: #FFF0F0; color: var(--danger); border: 1px solid #FFCDD2;">
                     <i class="fa-solid fa-trash"></i> Delete Personnel
                 </button>
             </form>
@@ -126,6 +119,129 @@
     </div>
 </div>
 {% endfor %}
+
+<!-- Add Personnel Modal -->
+<div id="addPersonnelModal" class="modal" onclick="if(event.target===this) this.classList.remove('show')">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add New Personnel</h2>
+            <span class="close-modal" aria-label="Close" onclick="closeAddPersonnelModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">All fields with <span style="color: var(--danger);">*</span> are required.</p>
+            <form action="{{ url_for('personnel') }}" method="POST">
+                <div class="form-group">
+                    <label class="form-label">First Name <span style="color: var(--danger);">*</span></label>
+                    <input type="text" name="first_name" class="form-control" placeholder="e.g. Juan" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Middle Name</label>
+                    <input type="text" name="middle_name" class="form-control" placeholder="e.g. Santos (Optional)" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Last Name <span style="color: var(--danger);">*</span></label>
+                    <input type="text" name="last_name" class="form-control" placeholder="e.g. Dela Cruz" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Designation / Role <span style="color: var(--danger);">*</span></label>
+                    <input type="text" name="designation" class="form-control" placeholder="e.g. Forest Ranger" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 8px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 2;">
+                        <i class="fa-solid fa-save"></i> Save Personnel
+                    </button>
+                    <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="closeAddPersonnelModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openAddPersonnelModal() {
+        document.getElementById('addPersonnelModal').classList.add('show');
+        setTimeout(() => document.querySelector('#addPersonnelModal input[name="first_name"]').focus(), 100);
+    }
+
+    function closeAddPersonnelModal() {
+        document.getElementById('addPersonnelModal').classList.remove('show');
+    }
+
+    function openEditPersonnelModal(id) {
+        document.getElementById('editPersonnelModal' + id).classList.add('show');
+        setTimeout(() => document.querySelector('#editPersonnelModal' + id + ' input[name="first_name"]').focus(), 100);
+    }
+
+    // Escape key handling for Modals
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modals = document.querySelectorAll('.modal.show');
+            modals.forEach(modal => modal.classList.remove('show'));
+        }
+    });
+
+    // Table sorting logic
+    function sortTable(n) {
+        var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+        table = document.getElementById("personnelTable");
+        switching = true;
+        dir = "asc"; 
+        
+        // Reset sort icons
+        const headers = table.querySelectorAll('th i.fa-sort, th i.fa-sort-up, th i.fa-sort-down');
+        headers.forEach(i => {
+            i.className = 'fa-solid fa-sort';
+            i.style.color = 'var(--text-muted)';
+        });
+        
+        while (switching) {
+            switching = false;
+            rows = table.rows;
+            for (i = 1; i < (rows.length - 1); i++) {
+                shouldSwitch = false;
+                x = rows[i].getElementsByTagName("TD")[n];
+                y = rows[i + 1].getElementsByTagName("TD")[n];
+                
+                if (!x || !y) continue;
+                if (x.colSpan > 1) continue;
+                
+                var xContent = x.textContent.toLowerCase().trim();
+                var yContent = y.textContent.toLowerCase().trim();
+                
+                if (dir == "asc") {
+                    if (xContent > yContent) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                } else if (dir == "desc") {
+                    if (xContent < yContent) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+            }
+            if (shouldSwitch) {
+                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                switching = true;
+                switchcount ++;      
+            } else {
+                if (switchcount == 0 && dir == "asc") {
+                    dir = "desc";
+                    switching = true;
+                }
+            }
+        }
+
+        // Set the active sort icon
+        const activeHeaderIcon = table.getElementsByTagName("TH")[n].querySelector('i');
+        if (activeHeaderIcon) {
+            activeHeaderIcon.className = dir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+            activeHeaderIcon.style.color = 'var(--denr-green)';
+        }
+    }
+</script>
 {% endblock %}

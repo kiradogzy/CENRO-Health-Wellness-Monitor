@@ -18,9 +18,34 @@
             </select>
         </div>
         
-        <div class="form-group">
-            <label class="form-label">Select Month/Year</label>
-            <input type="month" name="month_year" id="month_year" class="form-control">
+        <div class="form-group" style="display: flex; gap: 8px;">
+            <div style="flex: 1;">
+                <label class="form-label">Month</label>
+                <select id="report_month" class="form-control">
+                    <option value="">- Month -</option>
+                    <option value="01">January</option>
+                    <option value="02">February</option>
+                    <option value="03">March</option>
+                    <option value="04">April</option>
+                    <option value="05">May</option>
+                    <option value="06">June</option>
+                    <option value="07">July</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label class="form-label">Year</label>
+                <select id="report_year" class="form-control">
+                    <option value="">- Year -</option>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                </select>
+            </div>
         </div>
 
         <div class="form-group" style="display: flex; gap: 12px;">
@@ -37,17 +62,55 @@
 
 {% block scripts %}
 <script>
+document.getElementById('report_type').addEventListener('change', function(e) {
+    const type = e.target.value;
+    const mSelect = document.getElementById('report_month');
+    const ySelect = document.getElementById('report_year');
+    
+    if (type === 'yearly') {
+        mSelect.disabled = true;
+        mSelect.value = "";
+        ySelect.disabled = false;
+    } else if (type === 'all') {
+        mSelect.disabled = true;
+        ySelect.disabled = true;
+        mSelect.value = "";
+        ySelect.value = "";
+    } else {
+        mSelect.disabled = false;
+        ySelect.disabled = false;
+    }
+});
+
 function exportReport(type) {
     const reportType = document.getElementById('report_type').value;
-    const monthYear = document.getElementById('month_year').value;
+    const reportMonth = document.getElementById('report_month').value;
+    const reportYear = document.getElementById('report_year').value;
     
-    if ((reportType === 'monthly' || reportType === 'yearly') && !monthYear) {
-        alert('Please select a month/year for this report type.');
-        return;
+    let monthYear = '';
+
+    if (reportType === 'monthly') {
+        if (!reportMonth || !reportYear) {
+            alert('Please select both a month and a year for the monthly report.');
+            return;
+        }
+        monthYear = `${reportYear}-${reportMonth}`;
+    } else if (reportType === 'yearly') {
+        if (!reportYear) {
+            alert('Please select a year for the yearly report.');
+            return;
+        }
+        monthYear = reportYear;
     }
     
     const url = type === 'pdf' ? '{{ url_for("export_pdf") }}' : '{{ url_for("export_excel") }}';
-    window.location.href = `${url}?report_type=${reportType}&month_year=${monthYear}`;
+    const finalUrl = `${url}?report_type=${reportType}&month_year=${monthYear}`;
+    
+    if (type === 'pdf') {
+        window.open(finalUrl, '_blank');
+    } else {
+        window.location.href = finalUrl;
+    }
 }
 </script>
 {% endblock %}

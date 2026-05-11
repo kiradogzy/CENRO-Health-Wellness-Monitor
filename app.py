@@ -1,20 +1,105 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session, g
 import sqlite3
 from datetime import datetime, timedelta
 import pandas as pd
 import io
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import re
 
+# ─── Smart Insights Engine ────────────────────────────────────────────────────
+
+BP_THRESHOLDS = [
+    (None, None, 'normal',       'Normal',                    '✅'),
+    (120,   80,  'elevated',     'Elevated',                  '⚠️'),
+    (130,   80,  'stage1',       'Stage 1 Hypertension',      '🟠'),
+    (140,   90,  'stage2',       'Stage 2 Hypertension',      '🔴'),
+    (180,  120,  'crisis',       'Hypertensive Crisis',       '🚨'),
+]
+
+def get_bp_status(systolic, diastolic):
+    """Return (level, label, emoji) for a blood pressure reading."""
+    try:
+        s, d = int(systolic), int(diastolic)
+    except (TypeError, ValueError):
+        return 'unknown', 'Unknown', '❓'
+
+    if s >= 180 or d >= 120:
+        return 'crisis',  'Hypertensive Crisis',   '🚨'
+    if s >= 140 or d >= 90:
+        return 'stage2',  'Stage 2 Hypertension',  '🔴'
+    if s >= 130 or d >= 80:
+        return 'stage1',  'Stage 1 Hypertension',  '🟠'
+    if s >= 120:
+        return 'elevated','Elevated',               '⚠️'
+    return     'normal',  'Normal',                '✅'
+
+def get_sugar_status(sugar):
+    """Return (level, label, emoji) for a blood sugar reading."""
+    try:
+        val = float(sugar)
+    except (TypeError, ValueError):
+        return 'unknown', 'Unknown', '❓'
+
+    if val >= 126:
+        return 'high',       'Diabetic Range',  '🔴'
+    if val >= 100:
+        return 'prediabetic','Pre-Diabetic',    '⚠️'
+    return     'normal',     'Normal',          '✅'
+
+HEALTH_TIPS = {
+    # (bp_level, sugar_level): tip
+    ('normal',   'normal'):      'Great job! Keep up your healthy lifestyle. Stay active and hydrated.',
+    ('normal',   'prediabetic'): 'Your blood sugar is slightly elevated. Limit rice, sugary drinks, and sweets.',
+    ('normal',   'high'):        'Your blood sugar is in diabetic range. Please consult a physician soon.',
+    ('elevated', 'normal'):      'Your BP is slightly elevated. Reduce salt and caffeine intake.',
+    ('elevated', 'prediabetic'): 'Both readings need attention. Improve diet, exercise more, and reduce salt.',
+    ('elevated', 'high'):        'Concerning readings. Please consult a doctor for a full evaluation.',
+    ('stage1',   'normal'):      'Stage 1 Hypertension detected. Monitor your BP daily and reduce stress.',
+    ('stage1',   'prediabetic'): 'Multiple risk factors present. A doctor visit is strongly recommended.',
+    ('stage1',   'high'):        'High-risk readings. Please see a physician as soon as possible.',
+    ('stage2',   'normal'):      'Stage 2 Hypertension is serious. Seek medical attention promptly.',
+    ('stage2',   'prediabetic'): 'Critical health risks detected. Please see a doctor immediately.',
+    ('stage2',   'high'):        'URGENT: Very high risk readings. Please seek medical care immediately.',
+    ('crisis',   'normal'):      'EMERGENCY: Hypertensive Crisis. Seek emergency medical care NOW.',
+    ('crisis',   'prediabetic'): 'EMERGENCY: Critical BP and blood sugar. Seek emergency care NOW.',
+    ('crisis',   'high'):        'EMERGENCY: Extremely dangerous readings. Call emergency services NOW.',
+}
+
+def get_health_tip(bp_level, sugar_level):
+    """Return a personalized tip based on combined BP and sugar status."""
+    key = (bp_level, sugar_level)
+    return HEALTH_TIPS.get(key, 'Maintain a healthy diet, exercise regularly, and stay hydrated.')
+
+def get_overall_risk(bp_level, sugar_level):
+    """Return overall risk color class: success, warning, danger, critical."""
+    order = ['normal', 'elevated', 'prediabetic', 'stage1', 'stage2', 'high', 'crisis']
+    risk_map = {
+        'normal':      'success',
+        'elevated':    'warning',
+        'prediabetic': 'warning',
+        'stage1':      'danger',
+        'stage2':      'danger',
+        'high':        'danger',
+        'crisis':      'critical',
+    }
+    bp_risk   = risk_map.get(bp_level,    'success')
+    sug_risk  = risk_map.get(sugar_level, 'success')
+    # Return the more severe
+    severity = ['success', 'warning', 'danger', 'critical']
+    return severity[max(severity.index(bp_risk), severity.index(sug_risk))]
+
+# ──────────────────────────────────────────────────────────────────────────────
+
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'cenro_dc_health_super_secret_key_2026')
 app.permanent_session_lifetime = timedelta(minutes=15)
 DATABASE = 'health_monitor.db'
 
@@ -31,9 +116,16 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if 'db' not in g:
+        g.db = sqlite3.connect(DATABASE)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+@app.teardown_appcontext
+def close_db(exception):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 def init_db():
     with app.app_context():
@@ -198,9 +290,21 @@ def dashboard():
     ''').fetchall()
     
     current_month = datetime.now().strftime('%Y-%m')
-    checkups_this_month = db.execute('SELECT COUNT(*) FROM health_records WHERE strftime("%Y-%m", record_date) = ?', (current_month,)).fetchone()[0]
+    first_day_this_month = datetime.now().replace(day=1)
+    last_month_date = first_day_this_month - timedelta(days=1)
+    last_month = last_month_date.strftime('%Y-%m')
     
-    elevated_bp_cases = db.execute('SELECT COUNT(*) FROM health_records WHERE bp_systolic > 130 OR bp_diastolic > 80').fetchone()[0]
+    checkups_this_month = db.execute('SELECT COUNT(*) FROM health_records WHERE strftime("%Y-%m", record_date) = ?', (current_month,)).fetchone()[0]
+    checkups_last_month = db.execute('SELECT COUNT(*) FROM health_records WHERE strftime("%Y-%m", record_date) = ?', (last_month,)).fetchone()[0]
+    
+    elevated_bp_list = db.execute('''
+        SELECT h.bp_systolic, h.bp_diastolic, h.record_date, h.sugar_level, p.first_name, p.last_name, p.middle_name
+        FROM health_records h
+        JOIN personnel p ON h.personnel_id = p.id
+        WHERE h.bp_systolic > 130 OR h.bp_diastolic > 80
+        ORDER BY h.record_date DESC
+    ''').fetchall()
+    elevated_bp_cases = len(elevated_bp_list)
 
     # Get Monthly Averages for chart
     monthly_stats = db.execute('''
@@ -218,7 +322,7 @@ def dashboard():
     chart_data_sys = []
     chart_data_dia = []
     for row in monthly_stats:
-        if row['month']: # Ensure it's not None
+        if row['month']:
             chart_labels.append(months_map.get(row['month'], row['month']))
             chart_data_sys.append(round(row['avg_sys'], 1) if row['avg_sys'] else 0)
             chart_data_dia.append(round(row['avg_dia'], 1) if row['avg_dia'] else 0)
@@ -234,16 +338,80 @@ def dashboard():
     
     sugar_data = [sugar_stats['normal'] or 0, sugar_stats['prediabetic'] or 0, sugar_stats['high'] or 0]
 
+    # ── Smart Insights: At-Risk Personnel (latest record per person) ──
+    latest_per_person = db.execute('''
+        SELECT h.id, h.personnel_id, h.bp_systolic, h.bp_diastolic, h.sugar_level,
+               h.record_date, p.first_name, p.middle_name, p.last_name
+        FROM health_records h
+        JOIN personnel p ON h.personnel_id = p.id
+        WHERE h.id = (
+            SELECT id FROM health_records
+            WHERE personnel_id = h.personnel_id
+            ORDER BY record_date DESC, id DESC LIMIT 1
+        )
+        ORDER BY h.record_date DESC
+    ''').fetchall()
+
+    at_risk_personnel = []
+    for row in latest_per_person:
+        bp_lvl,  bp_lbl,  bp_emoji  = get_bp_status(row['bp_systolic'], row['bp_diastolic'])
+        sug_lvl, sug_lbl, sug_emoji = get_sugar_status(row['sugar_level'])
+        risk = get_overall_risk(bp_lvl, sug_lvl)
+        if risk in ('warning', 'danger', 'critical'):
+            at_risk_personnel.append({
+                'name':       f"{row['last_name']}, {row['first_name']} {(row['middle_name'][:1].upper() + '.') if row['middle_name'] else ''}",
+                'date':       row['record_date'],
+                'bp':         f"{row['bp_systolic']}/{row['bp_diastolic']}",
+                'sugar':      row['sugar_level'],
+                'bp_label':   bp_lbl,
+                'bp_emoji':   bp_emoji,
+                'sug_label':  sug_lbl,
+                'sug_emoji':  sug_emoji,
+                'risk':       risk,
+                'tip':        get_health_tip(bp_lvl, sug_lvl),
+            })
+
+    # ── Smart Insights: Worsening Trend Detection (last 3 records per person) ──
+    worsening_trends = []
+    all_personnel = db.execute('SELECT id, first_name, middle_name, last_name FROM personnel').fetchall()
+    for person in all_personnel:
+        last3 = db.execute('''
+            SELECT bp_systolic, bp_diastolic, sugar_level FROM health_records
+            WHERE personnel_id = ?
+            ORDER BY record_date DESC, id DESC LIMIT 3
+        ''', (person['id'],)).fetchall()
+        if len(last3) < 3:
+            continue
+        # Check if BP systolic is consistently rising across last 3 records
+        bp_rising = last3[2]['bp_systolic'] < last3[1]['bp_systolic'] < last3[0]['bp_systolic']
+        sug_rising = last3[2]['sugar_level'] < last3[1]['sugar_level'] < last3[0]['sugar_level']
+        if bp_rising or sug_rising:
+            trend_type = []
+            if bp_rising:  trend_type.append('BP')
+            if sug_rising: trend_type.append('Sugar')
+            worsening_trends.append({
+                'name':  f"{person['last_name']}, {person['first_name']} {(person['middle_name'][:1].upper() + '.') if person['middle_name'] else ''}",
+                'trend': ' & '.join(trend_type),
+            })
+
     return render_template('dashboard.html', 
                            total_personnel=total_personnel, 
                            total_records=total_records,
                            checkups_this_month=checkups_this_month,
                            elevated_bp_cases=elevated_bp_cases,
+                           elevated_bp_list=elevated_bp_list,
                            recent_records=recent_records,
                            chart_labels=chart_labels,
                            chart_data_sys=chart_data_sys,
                            chart_data_dia=chart_data_dia,
-                           sugar_data=sugar_data)
+                           sugar_data=sugar_data,
+                           at_risk_personnel=at_risk_personnel,
+                           worsening_trends=worsening_trends,
+                           get_bp_status=get_bp_status,
+                           get_sugar_status=get_sugar_status,
+                           get_health_tip=get_health_tip,
+                           get_overall_risk=get_overall_risk,
+                           checkups_last_month=checkups_last_month)
 
 @app.route('/personnel', methods=['GET', 'POST'])
 @login_required
@@ -323,42 +491,63 @@ def delete_personnel(id):
     return redirect(url_for('personnel'))
 
 
-@app.route('/records', methods=['GET', 'POST'])
+@app.route('/records')
 @login_required
 def records():
     db = get_db()
+    personnel_list = db.execute('SELECT id, first_name, middle_name, last_name FROM personnel ORDER BY last_name').fetchall()
+    all_records = db.execute('''
+        SELECT h.*, p.first_name, p.middle_name, p.last_name 
+        FROM health_records h 
+        JOIN personnel p ON h.personnel_id = p.id 
+        ORDER BY h.record_date DESC
+    ''').fetchall()
+    return render_template('records.html',
+                           personnel=personnel_list,
+                           records=all_records,
+                           get_bp_status=get_bp_status,
+                           get_sugar_status=get_sugar_status,
+                           get_health_tip=get_health_tip,
+                           get_overall_risk=get_overall_risk)
+
+
+@app.route('/add_record', methods=['GET', 'POST'])
+@login_required
+def add_record():
+    if session.get('role') not in ('admin', 'super_admin'):
+        flash('Admin access required to add records.', 'danger')
+        return redirect(url_for('records'))
+
+    db = get_db()
+
     if request.method == 'POST':
-        if session.get('role') not in ('admin', 'super_admin'):
-            flash('Admin access required for this action.', 'danger')
-            return redirect(url_for('records'))
         personnel_id = request.form.get('personnel_id')
-        record_date = request.form.get('record_date')
-        bp_systolic = request.form.get('bp_systolic')
+        record_date  = request.form.get('record_date')
+        bp_systolic  = request.form.get('bp_systolic')
         bp_diastolic = request.form.get('bp_diastolic')
-        sugar_level = request.form.get('sugar_level')
-        notes = request.form.get('notes', '')
-        
+        sugar_level  = request.form.get('sugar_level')
+        notes        = request.form.get('notes', '')
+
         errors = []
         required_fields = [
-            ('Personnel', personnel_id), 
-            ('Date', record_date), 
-            ('Systolic BP', bp_systolic), 
-            ('Diastolic BP', bp_diastolic), 
+            ('Personnel',   personnel_id),
+            ('Date',        record_date),
+            ('Systolic BP', bp_systolic),
+            ('Diastolic BP',bp_diastolic),
             ('Sugar Level', sugar_level)
         ]
-        
         for field_name, val in required_fields:
             if not val or not str(val).strip():
                 errors.append(f"{field_name} is required.")
-                
+
         if notes and re.search(r'[^\x00-\x7FñÑ]', str(notes)):
             errors.append("Emojis or unsupported characters are not allowed in Notes.")
-            
+
         if errors:
             for error in errors:
                 flash(error, 'danger')
-            return redirect(url_for('records'))
-            
+            return redirect(url_for('add_record'))
+
         evidence_photo = request.files.get('evidence_photo')
         evidence_filename = ''
         if evidence_photo and allowed_file(evidence_photo.filename):
@@ -366,7 +555,7 @@ def records():
             unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
             evidence_photo.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
             evidence_filename = unique_filename
-            
+
         db.execute('''
             INSERT INTO health_records (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes, evidence_photo)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -376,13 +565,7 @@ def records():
         return redirect(url_for('records'))
 
     personnel_list = db.execute('SELECT id, first_name, middle_name, last_name FROM personnel ORDER BY last_name').fetchall()
-    all_records = db.execute('''
-        SELECT h.*, p.first_name, p.middle_name, p.last_name 
-        FROM health_records h 
-        JOIN personnel p ON h.personnel_id = p.id 
-        ORDER BY h.record_date DESC
-    ''').fetchall()
-    return render_template('records.html', personnel=personnel_list, records=all_records)
+    return render_template('add_record.html', personnel=personnel_list)
 
 @app.route('/edit_record/<int:id>', methods=['POST'])
 @admin_required
@@ -514,7 +697,7 @@ def export_excel():
         df.to_excel(writer, index=False, sheet_name='Health Records')
     output.seek(0)
     
-    return send_file(output, as_attachment=True, download_name=f'health_records_{report_type}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return send_file(output, as_attachment=True, download_name=f'CENRO_Don_Carlos_Health_Records_{report_type}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/export_pdf')
 @login_required
@@ -549,12 +732,76 @@ def export_pdf():
     records = db.execute(query, params).fetchall()
     
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=30, bottomMargin=50, leftMargin=50, rightMargin=50)
     elements = []
     
     styles = getSampleStyleSheet()
-    elements.append(Paragraph(title_text, styles['Title']))
-    elements.append(Spacer(1, 12))
+    
+    # ─── Custom Header ───────────────────────────────────────────────────────
+    denr_logo_path = os.path.join(app.static_folder, 'img', 'denr_logo.png')
+    bp_logo_path = os.path.join(app.static_folder, 'img', 'bagong_pilipinas.png')
+
+    header_style = ParagraphStyle(
+        name='HeaderStyle',
+        parent=styles['Normal'],
+        alignment=TA_CENTER,
+        fontSize=10,
+        leading=12
+    )
+
+    bold_header_style = ParagraphStyle(
+        name='BoldHeaderStyle',
+        parent=styles['Normal'],
+        alignment=TA_CENTER,
+        fontSize=11,
+        fontName='Helvetica-Bold',
+        leading=14
+    )
+
+    title_style = ParagraphStyle(
+        name='ReportTitleStyle',
+        parent=styles['Normal'],
+        alignment=TA_CENTER,
+        fontSize=12,
+        fontName='Helvetica-Bold',
+        leading=16
+    )
+
+    img_width = 60
+    bp_size = 80  # Change this number to resize only the Bagong Pilipinas logo
+    
+    denr_img = RLImage(denr_logo_path, width=img_width, height=img_width) if os.path.exists(denr_logo_path) else ""
+    
+    # The Bagong Pilipinas logo might be rectangular, so let's adjust width slightly or keep aspect ratio
+    bp_img = RLImage(bp_logo_path, width=bp_size, height=bp_size) if os.path.exists(bp_logo_path) else ""
+
+    center_text = [
+        Paragraph("Republic of the Philippines", header_style),
+        Paragraph("DEPARTMENT OF ENVIRONMENT AND NATURAL RESOURCES", bold_header_style),
+        Paragraph("CENRO Don Carlos", header_style),
+        Spacer(1, 15),
+        Paragraph("HEALTH AND WELLNESS MONITORING REPORT", title_style),
+    ]
+
+    if report_type != 'all' and month_year:
+        subtitle = f"For the Period: {month_year}"
+        center_text.append(Spacer(1, 5))
+        center_text.append(Paragraph(subtitle, header_style))
+
+    header_table = Table(
+        [[denr_img, center_text, bp_img]], 
+        colWidths=[70, 380, 70]
+    )
+    header_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (0,0), 'LEFT'),
+        ('ALIGN', (1,0), (1,0), 'CENTER'),
+        ('ALIGN', (2,0), (2,0), 'RIGHT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+
+    elements.append(header_table)
+    elements.append(Spacer(1, 20))
+    # ─────────────────────────────────────────────────────────────────────────
     
     data = [['Name', 'Date', 'Blood Pressure', 'Sugar Level']]
     for r in records:
@@ -577,8 +824,7 @@ def export_pdf():
         
     doc.build(elements)
     buffer.seek(0)
-    
-    return send_file(buffer, as_attachment=True, download_name=f'health_report_{report_type}.pdf', mimetype='application/pdf')
+    return send_file(buffer, as_attachment=False, download_name=f'CENRO_Don_Carlos_Health_Report_{report_type}.pdf', mimetype='application/pdf')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=80, debug=True)

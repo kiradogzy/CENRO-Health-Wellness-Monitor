@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Health Record{% endblock %}
+{% block page_title %}Add Health Record{% endblock %}
+
+{% block content %}
+<div style="max-width: 680px; margin: 0 auto;">
+
+    {# Back link #}
+    <a href="{{ url_for('records') }}" class="btn" style="margin-bottom: 20px; background: #E8F5E9; color: var(--denr-green-dark); padding: 8px 18px;">
+        <i class="fa-solid fa-arrow-left"></i> Back to All Records
+    </a>
+
+    <div class="card">
+        <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 8px;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(46,125,50,0.1); color: var(--denr-green); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
+                <i class="fa-solid fa-notes-medical"></i>
+            </div>
+            <div>
+                <h2 style="color: var(--denr-green-dark); font-size: 1.4rem; margin: 0;">New Health Record</h2>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin: 4px 0 0;">
+                    All fields marked <span style="color: var(--danger);">*</span> are required.
+                </p>
+            </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 20px 0;">
+
+        <form action="{{ url_for('add_record') }}" method="POST" enctype="multipart/form-data">
+
+            {# Personnel #}
+            <div class="form-group">
+                <label class="form-label">Select Personnel <span style="color: var(--danger);">*</span></label>
+                <select name="personnel_id" id="personnel_id" class="form-control" required>
+                    <option value="" disabled selected>-- Select Personnel --</option>
+                    {% for p in personnel %}
+                    <option value="{{ p.id }}">{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {# Date #}
+            <div class="form-group">
+                <label class="form-label">Date of Checkup <span style="color: var(--danger);">*</span></label>
+                <input type="date" id="record_date" name="record_date" class="form-control" required>
+            </div>
+
+            {# BP Row #}
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Systolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
+                    <input type="number" id="bp_systolic" name="bp_systolic" class="form-control" placeholder="e.g. 120" min="60" max="300" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Diastolic BP (mmHg) <span style="color: var(--danger);">*</span></label>
+                    <input type="number" id="bp_diastolic" name="bp_diastolic" class="form-control" placeholder="e.g. 80" min="40" max="200" required>
+                </div>
+            </div>
+
+            {# Live BP Preview #}
+            <div id="bp-preview" style="display: none; margin: -8px 0 20px; padding: 10px 16px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; transition: all 0.3s;">
+                <i class="fa-solid fa-heart-pulse"></i> <span id="bp-preview-text"></span>
+            </div>
+
+            {# Sugar #}
+            <div class="form-group">
+                <label class="form-label">Blood Sugar Level (mg/dL) <span style="color: var(--danger);">*</span></label>
+                <input type="number" id="sugar_level" step="0.1" name="sugar_level" class="form-control" placeholder="e.g. 95.5" min="20" max="700" required>
+            </div>
+
+            {# Live Sugar Preview #}
+            <div id="sugar-preview" style="display: none; margin: -8px 0 20px; padding: 10px 16px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; transition: all 0.3s;">
+                <i class="fa-solid fa-droplet"></i> <span id="sugar-preview-text"></span>
+            </div>
+
+            {# Notes #}
+            <div class="form-group">
+                <label class="form-label">Notes / Remarks</label>
+                <textarea id="notes" name="notes" class="form-control" rows="3"
+                    placeholder="Optional remarks..."
+                    oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')"></textarea>
+            </div>
+
+            {# Evidence Photo #}
+            <div class="form-group">
+                <label class="form-label">Evidence Photo <span style="color: var(--text-muted); font-weight: 400;">(Optional)</span></label>
+                <input type="file" id="evidence_photo" name="evidence_photo" accept="image/*" class="form-control" style="padding: 8px 16px;">
+            </div>
+
+            {# Actions #}
+            <div style="display: flex; gap: 12px; margin-top: 8px;">
+                <button type="submit" class="btn btn-primary" style="flex: 2;">
+                    <i class="fa-solid fa-save"></i> Save Record
+                </button>
+                <a href="{{ url_for('records') }}" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);">
+                    Cancel
+                </a>
+            </div>
+
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Live BP classification preview
+    function classifyBP(sys, dia) {
+        if (!sys || !dia) return null;
+        if (sys >= 180 || dia >= 120) return { label: '🚨 Hypertensive Crisis — Seek emergency care NOW!', cls: 'critical' };
+        if (sys >= 140 || dia >= 90)  return { label: '🔴 Stage 2 Hypertension — Please see a doctor promptly.', cls: 'danger' };
+        if (sys >= 130 || dia >= 80)  return { label: '🟠 Stage 1 Hypertension — Monitor daily and reduce stress.', cls: 'stage1' };
+        if (sys >= 120)               return { label: '⚠️ Elevated BP — Reduce salt and caffeine intake.', cls: 'elevated' };
+        return                               { label: '✅ Normal BP — Keep up the great work!', cls: 'normal' };
+    }
+
+    function classifySugar(val) {
+        if (!val) return null;
+        if (val >= 126) return { label: '🔴 Diabetic Range — Please consult a physician soon.', cls: 'danger' };
+        if (val >= 100) return { label: '⚠️ Pre-Diabetic — Limit rice, sugary drinks, and sweets.', cls: 'elevated' };
+        return                 { label: '✅ Normal Sugar Level — Great reading!', cls: 'normal' };
+    }
+
+    const previewStyles = {
+        normal:   { bg: '#E8F5E9', color: '#1B5E20', border: '#A5D6A7' },
+        elevated: { bg: '#FFFDE7', color: '#E65100', border: '#FFE082' },
+        stage1:   { bg: '#FFF3E0', color: '#BF360C', border: '#FFAB91' },
+        danger:   { bg: '#FFEBEE', color: '#B71C1C', border: '#EF9A9A' },
+        critical: { bg: '#4A0000', color: '#fff',    border: '#7F0000' },
+    };
+
+    function applyPreview(previewEl, textEl, result) {
+        if (!result) { previewEl.style.display = 'none'; return; }
+        const s = previewStyles[result.cls] || previewStyles.normal;
+        previewEl.style.display = 'block';
+        previewEl.style.background = s.bg;
+        previewEl.style.color = s.color;
+        previewEl.style.border = '1px solid ' + s.border;
+        textEl.textContent = result.label;
+    }
+
+    function updateBPPreview() {
+        const sys = parseInt(document.getElementById('bp_systolic').value);
+        const dia = parseInt(document.getElementById('bp_diastolic').value);
+        applyPreview(
+            document.getElementById('bp-preview'),
+            document.getElementById('bp-preview-text'),
+            classifyBP(sys, dia)
+        );
+    }
+
+    function updateSugarPreview() {
+        const val = parseFloat(document.getElementById('sugar_level').value);
+        applyPreview(
+            document.getElementById('sugar-preview'),
+            document.getElementById('sugar-preview-text'),
+            classifySugar(val)
+        );
+    }
+
+    document.getElementById('bp_systolic').addEventListener('input', updateBPPreview);
+    document.getElementById('bp_diastolic').addEventListener('input', updateBPPreview);
+    document.getElementById('sugar_level').addEventListener('input', updateSugarPreview);
+</script>
+{% endblock %}
