@@ -47,7 +47,7 @@
     100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
 }
 
-.animate-fade-in {
+.animate-fade-in, .card, .table-container {
     animation: fadeInUp 0.5s ease-out forwards;
 }
 
