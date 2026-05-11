@@ -109,7 +109,6 @@
                     <select id="edit_role" name="role" class="form-control" required>
                         <option value="viewer">Viewer (Read Only)</option>
                         <option value="admin">Admin (Full Access, No User Mgmt)</option>
-                        <option value="super_admin">Super Admin</option>
                     </select>
                 </div>
                 
@@ -125,10 +124,48 @@
 <script>
     function openEditUserModal(id, username, role) {
         document.getElementById('edit_username').value = username;
-        document.getElementById('edit_role').value = role;
+        
+        let roleSelect = document.getElementById('edit_role');
+        let form = document.getElementById('editUserForm');
+        let hiddenInput = document.getElementById('hidden_role_input');
+        
+        // Remove super_admin option if it exists from previous modal opens
+        let hasSuperAdmin = Array.from(roleSelect.options).some(opt => opt.value === 'super_admin');
+        if (hasSuperAdmin) {
+            roleSelect.remove(roleSelect.options.length - 1);
+        }
+        
+        if (role === 'super_admin') {
+            // Add it back just for display purposes
+            let opt = document.createElement('option');
+            opt.value = 'super_admin';
+            opt.text = 'Super Admin';
+            roleSelect.add(opt);
+            
+            // Disable select so they can't change their own super admin status
+            roleSelect.disabled = true;
+            
+            // Add a hidden input to ensure the role is submitted since disabled fields are ignored
+            if (!hiddenInput) {
+                hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'role';
+                hiddenInput.id = 'hidden_role_input';
+                form.appendChild(hiddenInput);
+            }
+            hiddenInput.value = 'super_admin';
+        } else {
+            // Enable select for normal users
+            roleSelect.disabled = false;
+            if (hiddenInput) {
+                hiddenInput.remove();
+            }
+        }
+        
+        roleSelect.value = role;
         
         // Update the form action dynamically
-        document.getElementById('editUserForm').action = "{{ url_for('manage_users') }}".replace('users', 'edit_user/' + id);
+        form.action = "{{ url_for('manage_users') }}".replace('users', 'edit_user/' + id);
         
         document.getElementById('editUserModal').classList.add('show');
     }
