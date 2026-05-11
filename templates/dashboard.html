@@ -5,14 +5,14 @@
 
 {% block content %}
 <div class="stats-grid">
-    <div class="card stat-card interactive-card" onclick="window.location.href='{{ url_for('personnel') }}'">
+    <div class="card stat-card interactive-card" onclick="window.location.href='{{ url_for(\"personnel\") }}'">
         <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
         <div class="stat-details">
             <h3>Total Personnel</h3>
             <p>{{ total_personnel }}</p>
         </div>
     </div>
-    <div class="card stat-card interactive-card" onclick="window.location.href='{{ url_for('records') }}'">
+    <div class="card stat-card interactive-card" onclick="window.location.href='{{ url_for(\"records\") }}'">
         <div class="stat-icon"><i class="fa-solid fa-file-medical"></i></div>
         <div class="stat-details">
             <h3>Total Records</h3>
