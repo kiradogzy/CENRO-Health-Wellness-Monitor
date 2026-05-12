@@ -62,7 +62,20 @@
                 worsening_trends|length }} Alerts</p>
         </div>
     </div>
+    {% else %}
+    <div class="card stat-card"
+        style="background-color: #F1F8F1; border-color: #A5D6A7; padding: 18px; gap: 14px;">
+        <div class="stat-icon" style="width: 48px; height: 48px; font-size: 1.2rem; color: var(--denr-green); background-color: #C8E6C9;">
+            <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <div class="stat-details">
+            <h3 style="color: var(--denr-green-dark); font-size: 0.78rem;">Smart Insights</h3>
+            <p style="color: var(--denr-green); font-size: 1.1rem; font-weight: 700;">All Clear</p>
+            <p style="color: var(--text-muted); font-size: 0.78rem; margin-top: 2px;">No alerts at this time</p>
+        </div>
+    </div>
     {% endif %}
+
 </div>
 
 
@@ -190,10 +203,10 @@
                                 <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 10px;"><i class="fa-solid fa-calendar-day"></i> {{ person.date }}</span>
                             </div>
                             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <span class="badge badge-{{ person.risk }}">
+                                <span class="badge badge-{{ person.bp_lvl }}">
                                     {{ person.bp_emoji }} BP: {{ person.bp }} — {{ person.bp_label }}
                                 </span>
-                                <span class="badge badge-{{ person.risk }}">
+                                <span class="badge badge-{{ person.sug_lvl }}">
                                     {{ person.sug_emoji }} Sugar: {{ person.sugar }} mg/dL — {{ person.sug_label }}
                                 </span>
                             </div>

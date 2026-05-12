@@ -96,6 +96,24 @@ def get_overall_risk(bp_level, sugar_level):
     severity = ['success', 'warning', 'danger', 'critical']
     return severity[max(severity.index(bp_risk), severity.index(sug_risk))]
 
+def get_bmi_status(height_cm, weight_kg):
+    """Return (bmi_value, category_label, css_level) using WHO Asia-Pacific thresholds."""
+    try:
+        h = float(height_cm)
+        w = float(weight_kg)
+        if h <= 0 or w <= 0:
+            return None, 'N/A', 'unknown'
+        bmi = w / ((h / 100) ** 2)
+    except (TypeError, ValueError):
+        return None, 'N/A', 'unknown'
+
+    if bmi < 18.5:
+        return round(bmi, 1), 'Underweight',   'elevated'
+    if bmi < 23.0:
+        return round(bmi, 1), 'Normal Weight', 'normal'
+    if bmi < 27.5:
+        return round(bmi, 1), 'Overweight',    'stage1'
+    return round(bmi, 1), 'Obese', 'stage2'
 # ──────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
@@ -139,9 +157,17 @@ def init_db():
                 middle_name TEXT,
                 last_name TEXT NOT NULL,
                 designation TEXT,
+                height_cm REAL,
+                weight_kg REAL,
                 date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        # Migrate existing tables — add height/weight if they don't exist yet
+        existing_cols = [row[1] for row in db.execute('PRAGMA table_info(personnel)').fetchall()]
+        if 'height_cm' not in existing_cols:
+            db.execute('ALTER TABLE personnel ADD COLUMN height_cm REAL')
+        if 'weight_kg' not in existing_cols:
+            db.execute('ALTER TABLE personnel ADD COLUMN weight_kg REAL')
         db.execute('''
             CREATE TABLE IF NOT EXISTS health_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -168,10 +194,6 @@ def init_db():
         if not admin:
             db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
                        ('admin', generate_password_hash('admin123'), 'super_admin'))
-        else:
-            # Upgrade existing admin to super_admin if not already
-            if admin['role'] == 'admin':
-                db.execute('UPDATE users SET role = "super_admin" WHERE username = "admin"')
         db.commit()
 
 init_db()
@@ -404,8 +426,10 @@ def dashboard():
                 'date':       row['record_date'],
                 'bp':         f"{row['bp_systolic']}/{row['bp_diastolic']}",
                 'sugar':      row['sugar_level'],
+                'bp_lvl':     bp_lvl,
                 'bp_label':   bp_lbl,
                 'bp_emoji':   bp_emoji,
+                'sug_lvl':    sug_lvl,
                 'sug_label':  sug_lbl,
                 'sug_emoji':  sug_emoji,
                 'risk':       risk,
@@ -462,61 +486,109 @@ def personnel():
         if session.get('role') not in ('admin', 'super_admin'):
             flash('Admin access required for this action.', 'danger')
             return redirect(url_for('personnel'))
-        first_name = request.form.get('first_name', '')
+        first_name  = request.form.get('first_name', '')
         middle_name = request.form.get('middle_name', '')
-        last_name = request.form.get('last_name', '')
+        last_name   = request.form.get('last_name', '')
         designation = request.form.get('designation', '')
-        
+        height_cm   = request.form.get('height_cm', '').strip()
+        weight_kg   = request.form.get('weight_kg', '').strip()
+
         errors = []
         for field, val in [('First Name', first_name), ('Last Name', last_name), ('Designation', designation)]:
             if not str(val).strip():
                 errors.append(f"{field} is required.")
             elif re.search(r'[^\x00-\x7FñÑ]', str(val)):
                 errors.append(f"Emojis or unsupported characters are not allowed in {field}.")
-                
+
         if middle_name and re.search(r'[^\x00-\x7FñÑ]', str(middle_name)):
             errors.append("Emojis or unsupported characters are not allowed in Middle Name.")
-                
+
+        if not height_cm:
+            errors.append("Height is required.")
+        else:
+            try:
+                h = float(height_cm)
+                if h <= 0 or h > 300:
+                    errors.append("Height must be between 1 and 300 cm.")
+            except ValueError:
+                errors.append("Height must be a valid number.")
+
+        if not weight_kg:
+            errors.append("Weight is required.")
+        else:
+            try:
+                w = float(weight_kg)
+                if w <= 0 or w > 500:
+                    errors.append("Weight must be between 1 and 500 kg.")
+            except ValueError:
+                errors.append("Weight must be a valid number.")
+
         if errors:
             for error in errors:
                 flash(error, 'danger')
             return redirect(url_for('personnel'))
-            
-        db.execute('INSERT INTO personnel (first_name, middle_name, last_name, designation) VALUES (?, ?, ?, ?)',
-                   (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip()))
+
+        db.execute(
+            'INSERT INTO personnel (first_name, middle_name, last_name, designation, height_cm, weight_kg) VALUES (?, ?, ?, ?, ?, ?)',
+            (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip(), height_cm, weight_kg)
+        )
         db.commit()
         flash('Personnel added successfully!', 'success')
         return redirect(url_for('personnel'))
-        
+
     personnel_list = db.execute('SELECT * FROM personnel ORDER BY last_name').fetchall()
-    return render_template('personnel.html', personnel=personnel_list)
+    return render_template('personnel.html', personnel=personnel_list, get_bmi_status=get_bmi_status)
 
 @app.route('/edit_personnel/<int:id>', methods=['POST'])
 @admin_required
 def edit_personnel(id):
     db = get_db()
-    first_name = request.form.get('first_name', '')
+    first_name  = request.form.get('first_name', '')
     middle_name = request.form.get('middle_name', '')
-    last_name = request.form.get('last_name', '')
+    last_name   = request.form.get('last_name', '')
     designation = request.form.get('designation', '')
-    
+    height_cm   = request.form.get('height_cm', '').strip()
+    weight_kg   = request.form.get('weight_kg', '').strip()
+
     errors = []
     for field, val in [('First Name', first_name), ('Last Name', last_name), ('Designation', designation)]:
         if not str(val).strip():
             errors.append(f"{field} is required.")
         elif re.search(r'[^\x00-\x7FñÑ]', str(val)):
             errors.append(f"Emojis or unsupported characters are not allowed in {field}.")
-            
+
     if middle_name and re.search(r'[^\x00-\x7FñÑ]', str(middle_name)):
         errors.append("Emojis or unsupported characters are not allowed in Middle Name.")
-            
+
+    if not height_cm:
+        errors.append("Height is required.")
+    else:
+        try:
+            h = float(height_cm)
+            if h <= 0 or h > 300:
+                errors.append("Height must be between 1 and 300 cm.")
+        except ValueError:
+            errors.append("Height must be a valid number.")
+
+    if not weight_kg:
+        errors.append("Weight is required.")
+    else:
+        try:
+            w = float(weight_kg)
+            if w <= 0 or w > 500:
+                errors.append("Weight must be between 1 and 500 kg.")
+        except ValueError:
+            errors.append("Weight must be a valid number.")
+
     if errors:
         for error in errors:
             flash(error, 'danger')
         return redirect(url_for('personnel'))
-        
-    db.execute('UPDATE personnel SET first_name = ?, middle_name = ?, last_name = ?, designation = ? WHERE id = ?',
-               (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip(), id))
+
+    db.execute(
+        'UPDATE personnel SET first_name=?, middle_name=?, last_name=?, designation=?, height_cm=?, weight_kg=? WHERE id=?',
+        (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip(), height_cm, weight_kg, id)
+    )
     db.commit()
     flash('Personnel updated successfully!', 'success')
     return redirect(url_for('personnel'))
@@ -552,7 +624,7 @@ def records():
                            get_overall_risk=get_overall_risk)
 
 
-@app.route('/add_record', methods=['GET', 'POST'])
+@app.route('/add_record', methods=['POST'])
 @login_required
 def add_record():
     if session.get('role') not in ('admin', 'super_admin'):
@@ -560,53 +632,48 @@ def add_record():
         return redirect(url_for('records'))
 
     db = get_db()
+    personnel_id = request.form.get('personnel_id')
+    record_date  = request.form.get('record_date')
+    bp_systolic  = request.form.get('bp_systolic')
+    bp_diastolic = request.form.get('bp_diastolic')
+    sugar_level  = request.form.get('sugar_level')
+    notes        = request.form.get('notes', '')
 
-    if request.method == 'POST':
-        personnel_id = request.form.get('personnel_id')
-        record_date  = request.form.get('record_date')
-        bp_systolic  = request.form.get('bp_systolic')
-        bp_diastolic = request.form.get('bp_diastolic')
-        sugar_level  = request.form.get('sugar_level')
-        notes        = request.form.get('notes', '')
+    errors = []
+    required_fields = [
+        ('Personnel',   personnel_id),
+        ('Date',        record_date),
+        ('Systolic BP', bp_systolic),
+        ('Diastolic BP',bp_diastolic),
+        ('Sugar Level', sugar_level)
+    ]
+    for field_name, val in required_fields:
+        if not val or not str(val).strip():
+            errors.append(f"{field_name} is required.")
 
-        errors = []
-        required_fields = [
-            ('Personnel',   personnel_id),
-            ('Date',        record_date),
-            ('Systolic BP', bp_systolic),
-            ('Diastolic BP',bp_diastolic),
-            ('Sugar Level', sugar_level)
-        ]
-        for field_name, val in required_fields:
-            if not val or not str(val).strip():
-                errors.append(f"{field_name} is required.")
+    if notes and re.search(r'[^\x00-\x7FñÑ]', str(notes)):
+        errors.append("Emojis or unsupported characters are not allowed in Notes.")
 
-        if notes and re.search(r'[^\x00-\x7FñÑ]', str(notes)):
-            errors.append("Emojis or unsupported characters are not allowed in Notes.")
-
-        if errors:
-            for error in errors:
-                flash(error, 'danger')
-            return redirect(url_for('add_record'))
-
-        evidence_photo = request.files.get('evidence_photo')
-        evidence_filename = ''
-        if evidence_photo and allowed_file(evidence_photo.filename):
-            filename = secure_filename(evidence_photo.filename)
-            unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-            evidence_photo.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
-            evidence_filename = unique_filename
-
-        db.execute('''
-            INSERT INTO health_records (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes, evidence_photo)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), evidence_filename))
-        db.commit()
-        flash('Health record added successfully!', 'success')
+    if errors:
+        for error in errors:
+            flash(error, 'danger')
         return redirect(url_for('records'))
 
-    personnel_list = db.execute('SELECT id, first_name, middle_name, last_name FROM personnel ORDER BY last_name').fetchall()
-    return render_template('add_record.html', personnel=personnel_list)
+    evidence_photo = request.files.get('evidence_photo')
+    evidence_filename = ''
+    if evidence_photo and allowed_file(evidence_photo.filename):
+        filename = secure_filename(evidence_photo.filename)
+        unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+        evidence_photo.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+        evidence_filename = unique_filename
+
+    db.execute('''
+        INSERT INTO health_records (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes, evidence_photo)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), evidence_filename))
+    db.commit()
+    flash('Health record added successfully!', 'success')
+    return redirect(url_for('records'))
 
 @app.route('/edit_record/<int:id>', methods=['POST'])
 @admin_required

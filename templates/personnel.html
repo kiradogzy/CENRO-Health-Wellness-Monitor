@@ -41,29 +41,48 @@
     </div>
 
     <div class="table-container">
-        <table class="table" id="personnelTable">
+        <table class="table" id="personnelTable" style="table-layout: fixed; width: 100%;">
             <thead>
                 <tr>
-                    <th onclick="sortTable(0)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                    <th onclick="sortTable(0)" style="cursor: pointer; transition: color 0.2s; width: 28%; min-width: 160px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
                         Name <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </th>
-                    <th onclick="sortTable(1)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                    <th onclick="sortTable(1)" style="cursor: pointer; transition: color 0.2s; width: 27%; min-width: 140px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
                         Designation <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </th>
-                    <th onclick="sortTable(2)" style="cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                    <th style="width: 22%; min-width: 150px;">BMI</th>
+                    <th onclick="sortTable(3)" style="cursor: pointer; transition: color 0.2s; width: 13%; min-width: 120px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
                         Date Added <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </th>
                     {% if session.role in ('admin', 'super_admin') %}
-                    <th>Actions</th>
+                    <th style="width: 10%; min-width: 90px;">Actions</th>
                     {% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for p in personnel %}
+                {% set bmi_val, bmi_cat, bmi_lvl = get_bmi_status(p.height_cm, p.weight_kg) %}
                 <tr>
-                    <td><strong>{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</strong></td>
-                    <td>{{ p.designation }}</td>
-                    <td>{{ p.date_added.split(' ')[0] }}</td>
+                    <td style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><strong>{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</strong></td>
+                    <td style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.designation }}</td>
+                    <td>
+                        {% if bmi_val %}
+                        <span class="badge badge-{{ bmi_lvl }}" title="Height: {{ p.height_cm }}cm | Weight: {{ p.weight_kg }}kg">
+                            {{ bmi_val }} — {{ bmi_cat }}
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.82rem;">— Not recorded</span>
+                        {% endif %}
+                    </td>
+                    {% set raw_date = p.date_added[:10] if p.date_added else '' %}
+                    {% if raw_date %}
+                        {% set parts = raw_date.split('-') %}
+                        {% set months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}
+                        {% set friendly = months[parts[1]|int - 1] ~ ' ' ~ parts[2]|int ~ ', ' ~ parts[0] %}
+                    {% else %}
+                        {% set friendly = 'N/A' %}
+                    {% endif %}
+                    <td data-sort="{{ raw_date }}">{{ friendly }}</td>
                     {% if session.role in ('admin', 'super_admin') %}
                     <td>
                         <button type="button" class="btn" style="padding: 6px 12px; background-color: var(--denr-gold); color: var(--denr-green-dark); font-size: 0.85rem;" onclick="openEditPersonnelModal('{{ p.id }}')">
@@ -74,7 +93,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">
                         <div style="padding: 20px;">
                             <i class="fa-solid fa-users-slash" style="font-size: 3rem; color: var(--denr-green); opacity: 0.5; margin-bottom: 15px; display: block;"></i>
                             <h3 style="margin-bottom: 8px; color: var(--text-main);">No Personnel Added Yet</h3>
@@ -115,7 +134,7 @@
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">All fields with <span style="color: var(--danger);">*</span> are required.</p>
                 <div class="form-group">
                     <label class="form-label">First Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="first_name" class="form-control" value="{{ p.first_name }}" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                    <input type="text" name="first_name" class="form-control" value="{{ p.first_name }}" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Middle Name</label>
@@ -123,13 +142,41 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Last Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="last_name" class="form-control" value="{{ p.last_name }}" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                    <input type="text" name="last_name" class="form-control" value="{{ p.last_name }}" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Designation / Role <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="designation" class="form-control" value="{{ p.designation }}" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                    <input type="text" name="designation" class="form-control" value="{{ p.designation }}" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
                 </div>
-                
+
+                <!-- BMI Section -->
+                <label class="form-label">Body Measurements (for BMI) <span style="color: var(--danger);">*</span></label>
+                <div style="background: rgba(46,125,50,0.04); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.85rem;">Height (cm) <span style="color: var(--danger);">*</span></label>
+                            <input type="number" name="height_cm" id="editHeight{{ p.id }}" class="form-control"
+                                   value="{{ p.height_cm if p.height_cm else '' }}"
+                                   min="1" max="300" step="0.1" placeholder="e.g. 165"
+                                   required oninput="calcBMIPreview('{{ p.id }}')">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.85rem;">Weight (kg) <span style="color: var(--danger);">*</span></label>
+                            <input type="number" name="weight_kg" id="editWeight{{ p.id }}" class="form-control"
+                                   value="{{ p.weight_kg if p.weight_kg else '' }}"
+                                   min="1" max="500" step="0.1" placeholder="e.g. 68"
+                                   required oninput="calcBMIPreview('{{ p.id }}')">
+                        </div>
+                    </div>
+                    <div id="bmiPreview{{ p.id }}" style="margin-top: 12px; display: {% if p.height_cm and p.weight_kg %}flex{% else %}none{% endif %}; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); transition: all 0.3s ease;">
+                        <i class="fa-solid fa-circle-info" style="font-size: 1.1rem;"></i>
+                        <div>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">BMI Result</span><br>
+                            <strong id="bmiValue{{ p.id }}" style="font-size: 1.1rem;"></strong>
+                            <span id="bmiLabel{{ p.id }}" class="badge" style="margin-left: 8px;"></span>
+                        </div>
+                    </div>
+                </div>
                 <div style="display: flex; gap: 12px; margin-top: 8px;">
                     <button type="submit" class="btn btn-primary" style="flex: 2;">Save Changes</button>
                     <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="document.getElementById('editPersonnelModal{{ p.id }}').classList.remove('show')">Cancel</button>
@@ -157,7 +204,7 @@
             <form action="{{ url_for('personnel') }}" method="POST">
                 <div class="form-group">
                     <label class="form-label">First Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="first_name" class="form-control" placeholder="e.g. Juan" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                    <input type="text" name="first_name" class="form-control" placeholder="e.g. Juan" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Middle Name</label>
@@ -165,11 +212,38 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Last Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="last_name" class="form-control" placeholder="e.g. Dela Cruz" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                    <input type="text" name="last_name" class="form-control" placeholder="e.g. Dela Cruz" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Designation / Role <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="designation" class="form-control" placeholder="e.g. Forest Ranger" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                    <input type="text" name="designation" class="form-control" placeholder="e.g. Forest Ranger" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
+                </div>
+
+                <!-- BMI Section -->
+                <label class="form-label">Body Measurements (for BMI) <span style="color: var(--danger);">*</span></label>
+                <div style="background: rgba(46,125,50,0.04); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.85rem;">Height (cm) <span style="color: var(--danger);">*</span></label>
+                            <input type="number" name="height_cm" id="addHeight" class="form-control"
+                                   min="1" max="300" step="0.1" placeholder="e.g. 165"
+                                   required oninput="calcBMIPreview('add')">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.85rem;">Weight (kg) <span style="color: var(--danger);">*</span></label>
+                            <input type="number" name="weight_kg" id="addWeight" class="form-control"
+                                   min="1" max="500" step="0.1" placeholder="e.g. 68"
+                                   required oninput="calcBMIPreview('add')">
+                        </div>
+                    </div>
+                    <div id="bmiPreviewadd" style="margin-top: 12px; display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); transition: all 0.3s ease;">
+                        <i class="fa-solid fa-circle-info" style="font-size: 1.1rem;"></i>
+                        <div>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">BMI Result</span><br>
+                            <strong id="bmiValueadd" style="font-size: 1.1rem;"></strong>
+                            <span id="bmiLabeladd" class="badge" style="margin-left: 8px;"></span>
+                        </div>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 12px; margin-top: 8px;">
                     <button type="submit" class="btn btn-primary" style="flex: 2;">
@@ -190,7 +264,51 @@
     let currentPage = 1;
     let filteredRows = [];
 
-    // Override base.html filterTable
+    // ── BMI Live Preview ────────────────────────────────────────────────────
+    const BMI_CLASSES = {
+        underweight: { label: 'Underweight',   cls: 'badge-elevated' },
+        normal:      { label: 'Normal Weight', cls: 'badge-normal'   },
+        overweight:  { label: 'Overweight',    cls: 'badge-stage1'   },
+        obese:       { label: 'Obese',         cls: 'badge-stage2'   },
+    };
+
+    function calcBMIPreview(id) {
+        const hEl = document.getElementById(id === 'add' ? 'addHeight' : 'editHeight' + id);
+        const wEl = document.getElementById(id === 'add' ? 'addWeight' : 'editWeight' + id);
+        const box  = document.getElementById('bmiPreview'  + id);
+        const val  = document.getElementById('bmiValue'    + id);
+        const lbl  = document.getElementById('bmiLabel'    + id);
+
+        if (!hEl || !wEl || !box) return;
+        const h = parseFloat(hEl.value), w = parseFloat(wEl.value);
+        if (!h || !w || h <= 0 || w <= 0) { box.style.display = 'none'; return; }
+
+        const bmi = w / ((h / 100) ** 2);
+        let cat;
+        if      (bmi < 18.5) cat = 'underweight';
+        else if (bmi < 23.0) cat = 'normal';
+        else if (bmi < 27.5) cat = 'overweight';
+        else                 cat = 'obese';
+
+        const info = BMI_CLASSES[cat];
+        val.textContent = bmi.toFixed(1);
+        lbl.textContent = info.label;
+        lbl.className   = 'badge ' + info.cls;
+
+        // Colour the preview card border to match
+        const borderMap = { underweight: '#FFE082', normal: '#A5D6A7', overweight: '#FFAB91', obese: '#EF9A9A' };
+        box.style.borderColor = borderMap[cat];
+        box.style.display = 'flex';
+    }
+
+    // Initialise edit-modal previews that already have data
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('[id^="editHeight"]').forEach(el => {
+            const id = el.id.replace('editHeight', '');
+            calcBMIPreview(id);
+        });
+    });
+
     window.filterTable = function(tableId, query) {
         query = query.toLowerCase();
         const table = document.getElementById(tableId);
@@ -310,74 +428,70 @@
         }
     });
 
-    // Table sorting logic
+    // Table sorting logic — stateful toggle using data-sort-dir on the header
     function sortTable(n) {
-        var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
-        table = document.getElementById("personnelTable");
-        switching = true;
-        dir = "asc"; 
-        
-        // Reset sort icons
-        const headers = table.querySelectorAll('th i.fa-sort, th i.fa-sort-up, th i.fa-sort-down');
-        headers.forEach(i => {
-            i.className = 'fa-solid fa-sort';
-            i.style.color = 'var(--text-muted)';
+        const table = document.getElementById("personnelTable");
+        const th = table.getElementsByTagName("TH")[n];
+
+        // Read & toggle the direction stored on the header itself
+        const currentDir = th.getAttribute('data-sort-dir') || '';
+        const newDir = (currentDir === 'asc') ? 'desc' : 'asc';
+
+        // Reset ALL header icons and direction attributes
+        Array.from(table.getElementsByTagName("TH")).forEach(header => {
+            header.removeAttribute('data-sort-dir');
+            const icon = header.querySelector('i');
+            if (icon) {
+                icon.className = 'fa-solid fa-sort';
+                icon.style.color = 'var(--text-muted)';
+            }
         });
-        
-        while (switching) {
-            switching = false;
-            rows = table.rows;
-            for (i = 1; i < (rows.length - 1); i++) {
-                shouldSwitch = false;
-                x = rows[i].getElementsByTagName("TD")[n];
-                y = rows[i + 1].getElementsByTagName("TD")[n];
-                
-                if (!x || !y) continue;
-                if (x.colSpan > 1) continue;
-                
-                var xContent = x.textContent.toLowerCase().trim();
-                var yContent = y.textContent.toLowerCase().trim();
 
-                // Date Added column (col 2): parse as Date for correct chronological sorting
-                if (n === 2) {
-                    var xDate = new Date(xContent);
-                    var yDate = new Date(yContent);
-                    if (!isNaN(xDate) && !isNaN(yDate)) {
-                        xContent = xDate;
-                        yContent = yDate;
-                    }
-                }
-                
-                if (dir == "asc") {
-                    if (xContent > yContent) {
-                        shouldSwitch = true;
-                        break;
-                    }
-                } else if (dir == "desc") {
-                    if (xContent < yContent) {
-                        shouldSwitch = true;
-                        break;
-                    }
-                }
-            }
-            if (shouldSwitch) {
-                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                switching = true;
-                switchcount ++;      
+        // Set the clicked header's new direction and icon
+        th.setAttribute('data-sort-dir', newDir);
+        const activeIcon = th.querySelector('i');
+        if (activeIcon) {
+            activeIcon.className = newDir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+            activeIcon.style.color = 'var(--denr-green)';
+        }
+
+        // Collect all real data rows (skip the empty-state colspan row)
+        const tbody = table.querySelector('tbody');
+        const allRows = Array.from(tbody.querySelectorAll('tr')).filter(
+            row => row.querySelectorAll('td').length > 1
+        );
+
+        // Sort rows using Array.sort() for reliable asc/desc toggling
+        allRows.sort((a, b) => {
+            const aCell = a.getElementsByTagName('TD')[n];
+            const bCell = b.getElementsByTagName('TD')[n];
+            if (!aCell || !bCell) return 0;
+
+            let aVal, bVal;
+
+            if (n === 3) {
+                // Date Added: compare ISO date strings from data-sort attribute
+                const aISO = aCell.getAttribute('data-sort') || '';
+                const bISO = bCell.getAttribute('data-sort') || '';
+                aVal = aISO ? new Date(aISO).getTime() : 0;
+                bVal = bISO ? new Date(bISO).getTime() : 0;
             } else {
-                if (switchcount == 0 && dir == "asc") {
-                    dir = "desc";
-                    switching = true;
-                }
+                aVal = aCell.textContent.trim().toLowerCase();
+                bVal = bCell.textContent.trim().toLowerCase();
             }
-        }
 
-        // Set the active sort icon
-        const activeHeaderIcon = table.getElementsByTagName("TH")[n].querySelector('i');
-        if (activeHeaderIcon) {
-            activeHeaderIcon.className = dir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
-            activeHeaderIcon.style.color = 'var(--denr-green)';
-        }
+            if (aVal < bVal) return newDir === 'asc' ? -1 : 1;
+            if (aVal > bVal) return newDir === 'asc' ?  1 : -1;
+            return 0;
+        });
+
+        // Re-append rows in the new sorted order
+        allRows.forEach(row => tbody.appendChild(row));
+
+        // Sync pagination to reflect the new row order
+        filteredRows = allRows;
+        currentPage = 1;
+        updatePagination();
     }
 </script>
 {% endblock %}

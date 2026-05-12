@@ -51,7 +51,7 @@
             </li>
             <li class="nav-item">
                 <a href="{{ url_for('records') }}"
-                    class="{{ 'active' if request.endpoint in ('records', 'add_record') else '' }}"
+                    class="{{ 'active' if request.endpoint == 'records' else '' }}"
                     title="Health Records">
                     <i class="fa-solid fa-heart-pulse"></i>
                     <span class="nav-text">Health Records</span>
@@ -216,33 +216,7 @@
             }
         });
 
-        // Search Filter Logic
-        function filterTable(tableId, query) {
-            query = query.toLowerCase();
-            const table = document.getElementById(tableId);
-            const tr = table.getElementsByTagName("tr");
-            let count = 0;
 
-            for (let i = 1; i < tr.length; i++) {
-                if (tr[i].getElementsByTagName("td").length > 1) { // Skip empty state row
-                    const rowText = tr[i].textContent || tr[i].innerText;
-                    if (rowText.toLowerCase().indexOf(query) > -1) {
-                        tr[i].style.display = "";
-                        count++;
-                    } else {
-                        tr[i].style.display = "none";
-                    }
-                }
-            }
-
-            // Update counter if it exists
-            const counter = document.getElementById(tableId.replace('Table', 'Count'));
-            if (counter) {
-                counter.innerText = count + ' record' + (count !== 1 ? 's' : '') + ' found';
-            }
-        }
-
-        // Global Loading State function
         function showLoadingState(btn) {
             if (!btn) return;
             const originalWidth = btn.offsetWidth;
