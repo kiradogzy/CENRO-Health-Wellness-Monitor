@@ -85,25 +85,7 @@
         </div>
 
         <div class="login-body">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            <div class="flash-messages-login">
-                {% for category, message in messages %}
-                <div class="alert alert-{{ category }}"
-                    style="position: static; transform: none; box-shadow: none; margin-bottom: 12px;">
-                    {% if category == 'success' %}
-                    <i class="fa-solid fa-circle-check"></i>
-                    {% elif category == 'danger' %}
-                    <i class="fa-solid fa-circle-exclamation"></i>
-                    {% else %}
-                    <i class="fa-solid fa-circle-info"></i>
-                    {% endif %}
-                    {{ message }}
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-            {% endwith %}
+
 
             <form method="POST" action="{{ url_for('login') }}">
                 <div class="form-group">
@@ -114,8 +96,12 @@
 
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" class="form-control"
-                        placeholder="Enter password" oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')">
+                    <div style="position: relative;">
+                        <input type="password" id="password" name="password" class="form-control"
+                            placeholder="Enter password" style="padding-right: 40px;" oninput="this.value = this.value.replace(/[^\x00-\x7FñÑ]/g, '')">
+                        <i class="fa-regular fa-eye" id="togglePassword" 
+                           style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--text-muted);"></i>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary login-btn">
@@ -125,6 +111,74 @@
         </div>
     </div>
 
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="toast toast-{{ category }}" role="alert">
+            <div class="toast-icon">
+                {% if category == 'success' %}
+                <i class="fa-solid fa-circle-check"></i>
+                {% elif category == 'danger' %}
+                <i class="fa-solid fa-circle-exclamation"></i>
+                {% elif category == 'warning' %}
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                {% else %}
+                <i class="fa-solid fa-circle-info"></i>
+                {% endif %}
+            </div>
+            <div class="toast-content">
+                <p class="toast-title" style="margin-bottom: 2px;">
+                    {% if category == 'success' %}Success
+                    {% elif category == 'danger' %}Error
+                    {% elif category == 'warning' %}Warning
+                    {% else %}Notification
+                    {% endif %}
+                </p>
+                <p class="toast-message">{{ message }}</p>
+            </div>
+            <button class="toast-close" onclick="closeToast(this.parentElement)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach((toast, index) => {
+                setTimeout(() => {
+                    toast.classList.add('show');
+                    setTimeout(() => {
+                        closeToast(toast);
+                    }, 5000);
+                }, index * 150);
+            });
+        });
+
+        function closeToast(toastElement) {
+            toastElement.classList.remove('show');
+            toastElement.classList.add('hide');
+            setTimeout(() => {
+                toastElement.remove();
+            }, 400);
+        }
+        const togglePassword = document.querySelector('#togglePassword');
+        const password = document.querySelector('#password');
+
+        togglePassword.addEventListener('click', function (e) {
+            // toggle the type attribute
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            // toggle the eye slash icon
+            this.classList.toggle('fa-eye-slash');
+            this.classList.toggle('fa-eye');
+        });
+    </script>
 </body>
 
 </html>

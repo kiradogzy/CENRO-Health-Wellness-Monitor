@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}System Audit Logs{% endblock %}
+{% block page_title %}System Audit Logs{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="color: var(--denr-green-dark); font-size: 1.4rem; margin: 0;">
+            <i class="fa-solid fa-list-check" style="margin-right: 10px; color: var(--denr-green);"></i>Activity History
+        </h2>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">
+            {% if logs|length >= 500 %}
+                Showing the last 500 actions
+            {% else %}
+                Showing {{ logs|length }} action{% if logs|length != 1 %}s{% endif %}
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td style="white-space: nowrap; font-size: 0.9rem;">{{ log.timestamp }}</td>
+                    <td><strong>{{ log.username }}</strong></td>
+                    <td>
+                        <span class="badge" style="background-color: #E8F5E9; color: var(--denr-green-dark); border: 1px solid #C8E6C9;">
+                            {{ log.action }}
+                        </span>
+                    </td>
+                    <td style="color: var(--text-muted); font-size: 0.95rem;">{{ log.details }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                        No activity logs found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

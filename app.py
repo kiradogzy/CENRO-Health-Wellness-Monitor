@@ -1,7 +1,9 @@
 import os
+import shutil
+import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session, g
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import io
 from reportlab.lib.pagesizes import letter
@@ -13,6 +15,21 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import re
+import threading
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+
+# --- Load Environment Variables from .env ---
+env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+if os.path.exists(env_path):
+    with open(env_path, 'r') as f:
+        for line in f:
+            if '=' in line and not line.strip().startswith('#'):
+                key, val = line.strip().split('=', 1)
+                os.environ[key.strip()] = val.strip()
+# ------------------------------------------
 
 # ─── Smart Insights Engine ────────────────────────────────────────────────────
 
@@ -114,19 +131,211 @@ def get_bmi_status(height_cm, weight_kg):
     if bmi < 27.5:
         return round(bmi, 1), 'Overweight',    'stage1'
     return round(bmi, 1), 'Obese', 'stage2'
+
+def calculate_age(dob_string):
+    if not dob_string:
+        return '—'
+    try:
+        dob = datetime.strptime(dob_string, '%Y-%m-%d')
+        today = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)
+        return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    except ValueError:
+        return '—'
+
+# ─── Email Notification Engine ────────────────────────────────────────────────
+def send_email_alert_async(email_address, subject, message_plain, message_html=None):
+    SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+    SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
+    SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '')
+    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '') # Google App Password
+
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        print(f"\n[MOCK EMAIL] Would send to {email_address}")
+        print(f"Subject: {subject}")
+        print(f"Body:\n{message_plain}")
+        print("[MOCK EMAIL] To send real emails, set SMTP_USERNAME and SMTP_PASSWORD in environment variables.\n")
+        return
+
+    try:
+        msg_root = MIMEMultipart('related')
+        msg_root['Subject'] = subject
+        msg_root['From'] = SMTP_USERNAME
+        msg_root['To'] = email_address
+
+        msg_alternative = MIMEMultipart('alternative')
+        msg_root.attach(msg_alternative)
+
+        part1 = MIMEText(message_plain, 'plain')
+        msg_alternative.attach(part1)
+        
+        if message_html:
+            part2 = MIMEText(message_html, 'html')
+            msg_alternative.attach(part2)
+            
+            try:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                logo_path = os.path.join(base_dir, 'static', 'img', 'denr_logo.png')
+                if os.path.exists(logo_path):
+                    with open(logo_path, 'rb') as f:
+                        img = MIMEImage(f.read())
+                        img.add_header('Content-ID', '<denr_logo>')
+                        # Omit Content-Disposition entirely to prevent Gmail from showing an attachment snippet
+                        msg_root.attach(img)
+            except Exception as e:
+                print(f"[EMAIL WARNING] Could not attach images: {e}")
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.send_message(msg_root)
+        server.quit()
+        print(f"[EMAIL SUCCESS] Sent alert to {email_address}")
+    except Exception as e:
+        print(f"[EMAIL ERROR] Exception: {e}")
+
+def trigger_health_alert(personnel_name, email_address, risk_level, bp, sugar):
+    if not email_address or not email_address.strip():
+        return
+        
+    subject = f"URGENT: Health Alert ({risk_level.upper()}) - CENRO Don Carlos"
+    message_plain = (f"Hi {personnel_name},\n\n"
+               f"Your latest checkup shows a {risk_level.upper()} health risk level.\n"
+               f"Blood Pressure: {bp} mmHg\n"
+               f"Blood Sugar: {sugar} mg/dL\n\n"
+               "Please consult a physician immediately.\n\n"
+               "Stay safe,\n"
+               "CENRO Don Carlos Health Monitoring System")
+               
+    color = "#E53935" if risk_level in ('danger', 'critical') else "#F57C00"
+    message_html = f'''
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #1B5E20; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(27, 94, 32, 0.1);">
+        <div style="background-color: #1B5E20; padding: 25px 20px; text-align: center; border-bottom: 4px solid #FBC02D;">
+            <img src="cid:denr_logo" alt="DENR Logo" height="80" style="display: block; margin: 0 auto 15px auto;">
+            <h2 style="margin: 0; font-size: 24px; color: #FBC02D; letter-spacing: 1px; text-transform: uppercase; text-shadow: 1px 1px 3px rgba(0,0,0,0.5);">CENRO Don Carlos</h2>
+            <p style="margin: 5px 0 0 0; color: #E8F5E9; font-size: 14px; letter-spacing: 2px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">HEALTH & WELLNESS MONITORING</p>
+        </div>
+        <div style="background-color: {color}; color: white; padding: 12px 20px; text-align: center;">
+            <h3 style="margin: 0; font-size: 18px; letter-spacing: 2px; text-transform: uppercase;">⚠ Health Risk Alert: {risk_level.upper()}</h3>
+        </div>
+        <div style="padding: 30px; background-color: #ffffff;">
+            <p style="font-size: 16px; color: #2C3E50;">Hi <strong>{personnel_name}</strong>,</p>
+            <p style="font-size: 16px; color: #2C3E50; line-height: 1.5;">Your latest checkup indicates a <span style="color: {color}; font-weight: 700; padding: 2px 6px; background-color: rgba(0,0,0,0.05); border-radius: 4px;">{risk_level.upper()}</span> health risk level. Please review your recorded vitals below:</p>
+            
+            <div style="background-color: #F4F7F5; border-left: 5px solid {color}; padding: 20px; margin: 25px 0; border-radius: 0 6px 6px 0;">
+                <table style="width: 100%; font-size: 15px; color: #000000;">
+                    <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #E0E6E1;"><strong>Blood Pressure:</strong></td>
+                        <td style="padding: 8px 0; text-align: right; border-bottom: 1px solid #E0E6E1; font-weight: 600;">{bp} mmHg</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; padding-top: 12px;"><strong>Blood Sugar:</strong></td>
+                        <td style="padding: 8px 0; text-align: right; padding-top: 12px; font-weight: 600;">{sugar} mg/dL</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <p style="font-size: 16px; font-weight: bold; color: {color}; text-align: center; margin-top: 30px; padding: 15px; background-color: rgba(229, 57, 53, 0.05); border-radius: 6px;">
+                Please consult a physician immediately.
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #E0E6E1; margin: 30px 0;">
+            <p style="font-size: 12px; color: #7F8C8D; text-align: center; margin: 0; line-height: 1.6;">
+                This is an automated message from the<br>
+                <strong style="color: #1B5E20;">CENRO Don Carlos Health Monitoring System</strong><br>
+                Department of Environment and Natural Resources
+            </p>
+        </div>
+    </div>
+    '''
+               
+    thread = threading.Thread(target=send_email_alert_async, args=(email_address, subject, message_plain, message_html))
+    thread.start()
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'cenro_dc_health_super_secret_key_2026')
 app.permanent_session_lifetime = timedelta(minutes=15)
+
+# Session Security Configurations
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
+
 # Configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, 'health_monitor.db')
+BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads', 'evidence')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB upload limit to prevent memory crashes
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(BACKUP_DIR, exist_ok=True)
+
+# ─── Automated Database Backup ────────────────────────────────────────────────
+def backup_database():
+    if os.path.exists(DATABASE):
+        # Create a backup filename with the current date (Ph Time)
+        date_str = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)).strftime('%Y-%m-%d')
+        backup_file = os.path.join(BACKUP_DIR, f'health_monitor_backup_{date_str}.db')
+        
+        # Only copy if we haven't backed up today
+        if not os.path.exists(backup_file):
+            try:
+                shutil.copy2(DATABASE, backup_file)
+                print(f"[BACKUP SUCCESS] Database automatically backed up to {backup_file}")
+            except Exception as e:
+                print(f"[BACKUP ERROR] Failed to backup database: {e}")
+
+backup_database()
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    # Auto-inject CSRF token into all HTML forms
+    if response.content_type and 'text/html' in response.content_type:
+        token = session.get('csrf_token')
+        if token:
+            html = response.get_data(as_text=True)
+            injection = f'<input type="hidden" name="csrf_token" value="{token}"></form>'
+            new_html = html.replace('</form>', injection)
+            response.set_data(new_html)
+            
+    return response
+
+@app.before_request
+def security_checks():
+    # Force session saving so the new token is written
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+        
+    # Session Role Verification
+    if 'user_id' in session:
+        if request.endpoint and 'static' not in request.endpoint:
+            db = get_db()
+            user = db.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+            if not user:
+                session.clear()
+                flash('Your account has been removed. Please log in again.', 'danger')
+                return redirect(url_for('login'))
+            if user['role'] != session.get('role'):
+                session['role'] = user['role']
+                flash('Your access role was updated by an administrator. Please review your permissions.', 'warning')
+
+    # CSRF Protection
+    if request.method == "POST":
+        token = session.get('csrf_token')
+        form_token = request.form.get('csrf_token')
+        if not token or token != form_token:
+            flash('Invalid or expired security token. Please try submitting again.', 'danger')
+            return redirect(request.url)
 
 @app.before_request
 def make_session_permanent():
@@ -139,6 +348,7 @@ def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DATABASE)
         g.db.row_factory = sqlite3.Row
+        g.db.execute('PRAGMA foreign_keys = ON')
     return g.db
 
 @app.teardown_appcontext
@@ -164,10 +374,18 @@ def init_db():
         ''')
         # Migrate existing tables — add height/weight if they don't exist yet
         existing_cols = [row[1] for row in db.execute('PRAGMA table_info(personnel)').fetchall()]
+        if 'date_of_birth' not in existing_cols:
+            db.execute('ALTER TABLE personnel ADD COLUMN date_of_birth DATE')
+        if 'gender' not in existing_cols:
+            db.execute('ALTER TABLE personnel ADD COLUMN gender TEXT DEFAULT ""')
         if 'height_cm' not in existing_cols:
             db.execute('ALTER TABLE personnel ADD COLUMN height_cm REAL')
         if 'weight_kg' not in existing_cols:
             db.execute('ALTER TABLE personnel ADD COLUMN weight_kg REAL')
+        if 'mobile_number' not in existing_cols:
+            db.execute('ALTER TABLE personnel ADD COLUMN mobile_number TEXT DEFAULT ""')
+        if 'email_address' not in existing_cols:
+            db.execute('ALTER TABLE personnel ADD COLUMN email_address TEXT DEFAULT ""')
         db.execute('''
             CREATE TABLE IF NOT EXISTS health_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,7 +397,7 @@ def init_db():
                 notes TEXT,
                 evidence_photo TEXT DEFAULT '',
                 date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (personnel_id) REFERENCES personnel (id)
+                FOREIGN KEY (personnel_id) REFERENCES personnel (id) ON DELETE CASCADE
             )
         ''')
         db.execute('''
@@ -190,13 +408,30 @@ def init_db():
                 role TEXT NOT NULL DEFAULT 'viewer'
             )
         ''')
-        admin = db.execute('SELECT * FROM users WHERE username = "admin"').fetchone()
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                action TEXT NOT NULL,
+                details TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        admin = db.execute('SELECT * FROM users WHERE role = "super_admin"').fetchone()
         if not admin:
             db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
                        ('admin', generate_password_hash('admin123'), 'super_admin'))
         db.commit()
 
 init_db()
+
+def log_activity(action, details=""):
+    if 'username' in session:
+        db = get_db()
+        ph_time = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
+        db.execute('INSERT INTO activity_logs (username, action, details, timestamp) VALUES (?, ?, ?, ?)',
+                   (session['username'], action, details, ph_time))
+        db.commit()
 
 def login_required(f):
     @wraps(f)
@@ -228,9 +463,27 @@ def super_admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Rate limiting config for Brute Force Protection
+FAILED_LOGINS = {}
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        client_ip = request.remote_addr
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        
+        # Check if IP is locked out
+        if client_ip in FAILED_LOGINS:
+            attempts, lockout_time = FAILED_LOGINS[client_ip]
+            if lockout_time and now < lockout_time:
+                remaining = int((lockout_time - now).total_seconds() / 60) + 1
+                flash(f'Too many failed attempts. Please try again in {remaining} minute(s).', 'danger')
+                return render_template('login.html')
+            elif lockout_time and now >= lockout_time:
+                del FAILED_LOGINS[client_ip] # Lockout expired
+                
         username = request.form.get('username', '')
         password = request.form.get('password', '')
         
@@ -246,13 +499,26 @@ def login():
         user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         
         if user and check_password_hash(user['password_hash'], password):
+            # Reset failed attempts on success
+            if client_ip in FAILED_LOGINS:
+                del FAILED_LOGINS[client_ip]
+                
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['role'] = user['role']
             flash('Logged in successfully!', 'success')
             return redirect(url_for('dashboard'))
         else:
-            flash('Invalid username or password.', 'danger')
+            # Record failed attempt
+            attempts, lockout_time = FAILED_LOGINS.get(client_ip, (0, None))
+            attempts += 1
+            if attempts >= MAX_FAILED_ATTEMPTS:
+                lockout_time = now + timedelta(minutes=LOCKOUT_MINUTES)
+                FAILED_LOGINS[client_ip] = (attempts, lockout_time)
+                flash(f'Account locked due to multiple failed attempts. Please try again in {LOCKOUT_MINUTES} minutes.', 'danger')
+            else:
+                FAILED_LOGINS[client_ip] = (attempts, None)
+                flash(f'Invalid username or password. {MAX_FAILED_ATTEMPTS - attempts} attempts remaining.', 'danger')
             
     return render_template('login.html')
 
@@ -273,6 +539,8 @@ def manage_users():
         
         if not username or not password:
             flash('Username and password are required.', 'danger')
+        elif len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'danger')
         elif re.search(r'[^\x00-\x7FñÑ]', username) or re.search(r'[^\x00-\x7FñÑ]', password):
             flash('Emojis or unsupported characters are not allowed.', 'danger')
         else:
@@ -283,6 +551,7 @@ def manage_users():
                 db.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
                            (username, generate_password_hash(password), role))
                 db.commit()
+                log_activity('CREATE_USER', f"Created user '{username}' with role '{role}'")
                 flash('User created successfully!', 'success')
         return redirect(url_for('manage_users'))
 
@@ -299,6 +568,14 @@ def edit_user(id):
     
     if not username:
         flash('Username is required.', 'danger')
+        return redirect(url_for('manage_users'))
+        
+    if password and len(password) < 6:
+        flash('Password must be at least 6 characters long.', 'danger')
+        return redirect(url_for('manage_users'))
+        
+    if id == session.get('user_id') and role != 'super_admin':
+        flash('You cannot demote your own account.', 'danger')
         return redirect(url_for('manage_users'))
         
     if re.search(r'[^\x00-\x7FñÑ]', username) or (password and re.search(r'[^\x00-\x7FñÑ]', password)):
@@ -324,6 +601,7 @@ def edit_user(id):
         session['username'] = username
         session['role'] = role
         
+    log_activity('EDIT_USER', f"Updated user '{username}' (ID: {id})")
     flash('User updated successfully!', 'success')
     return redirect(url_for('manage_users'))
 
@@ -334,10 +612,30 @@ def delete_user(id):
         flash('You cannot delete your own account!', 'danger')
     else:
         db = get_db()
+        user = db.execute('SELECT username FROM users WHERE id = ?', (id,)).fetchone()
+        uname = user['username'] if user else f"ID {id}"
         db.execute('DELETE FROM users WHERE id = ?', (id,))
         db.commit()
+        log_activity('DELETE_USER', f"Deleted user '{uname}'")
         flash('User deleted successfully.', 'success')
     return redirect(url_for('manage_users'))
+
+@app.route('/download_backup')
+@super_admin_required
+def download_backup():
+    if os.path.exists(DATABASE):
+        date_str = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)).strftime('%Y-%m-%d_%H%M%S')
+        return send_file(DATABASE, as_attachment=True, download_name=f'cenro_health_backup_{date_str}.db', mimetype='application/x-sqlite3')
+    else:
+        flash('Database file not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/audit_logs')
+@super_admin_required
+def audit_logs():
+    db = get_db()
+    logs = db.execute('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 500').fetchall()
+    return render_template('audit_logs.html', logs=logs)
 
 @app.route('/')
 @login_required
@@ -369,12 +667,13 @@ def dashboard():
     ''').fetchall()
     elevated_bp_cases = len(elevated_bp_list)
 
-    # Get Monthly Averages for chart
+    # Get Monthly Averages for chart (Current Year Only)
     monthly_stats = db.execute('''
         SELECT strftime('%m', record_date) as month, 
                AVG(bp_systolic) as avg_sys,
                AVG(bp_diastolic) as avg_dia
         FROM health_records
+        WHERE strftime('%Y', record_date) = strftime('%Y', 'now', '+8 hours')
         GROUP BY month
         ORDER BY month
     ''').fetchall()
@@ -392,9 +691,9 @@ def dashboard():
             
     sugar_stats = db.execute('''
         SELECT 
-            SUM(CASE WHEN sugar_level <= 99 THEN 1 ELSE 0 END) as normal,
-            SUM(CASE WHEN sugar_level > 99 AND sugar_level <= 125 THEN 1 ELSE 0 END) as prediabetic,
-            SUM(CASE WHEN sugar_level > 125 THEN 1 ELSE 0 END) as high
+            SUM(CASE WHEN sugar_level < 100 THEN 1 ELSE 0 END) as normal,
+            SUM(CASE WHEN sugar_level >= 100 AND sugar_level < 126 THEN 1 ELSE 0 END) as prediabetic,
+            SUM(CASE WHEN sugar_level >= 126 THEN 1 ELSE 0 END) as high
         FROM health_records
         WHERE sugar_level IS NOT NULL AND sugar_level > 0
     ''').fetchone()
@@ -404,7 +703,7 @@ def dashboard():
     # ── Smart Insights: At-Risk Personnel (latest record per person) ──
     latest_per_person = db.execute('''
         SELECT h.id, h.personnel_id, h.bp_systolic, h.bp_diastolic, h.sugar_level,
-               h.record_date, p.first_name, p.middle_name, p.last_name
+               h.record_date, p.first_name, p.middle_name, p.last_name, p.email_address
         FROM health_records h
         JOIN personnel p ON h.personnel_id = p.id
         WHERE h.id = (
@@ -422,6 +721,8 @@ def dashboard():
         risk = get_overall_risk(bp_lvl, sug_lvl)
         if risk in ('warning', 'danger', 'critical'):
             at_risk_personnel.append({
+                'personnel_id': row['personnel_id'],
+                'email':      row['email_address'],
                 'name':       f"{row['last_name']}, {row['first_name']} {(row['middle_name'][:1].upper() + '.') if row['middle_name'] else ''}",
                 'date':       row['record_date'],
                 'bp':         f"{row['bp_systolic']}/{row['bp_diastolic']}",
@@ -448,8 +749,14 @@ def dashboard():
         if len(last3) < 3:
             continue
         # Check if BP systolic is consistently rising across last 3 records
-        bp_rising = last3[2]['bp_systolic'] < last3[1]['bp_systolic'] < last3[0]['bp_systolic']
-        sug_rising = last3[2]['sugar_level'] < last3[1]['sugar_level'] < last3[0]['sugar_level']
+        bp_rising = False
+        sug_rising = False
+        
+        if all(row['bp_systolic'] is not None for row in last3):
+            bp_rising = last3[2]['bp_systolic'] < last3[1]['bp_systolic'] < last3[0]['bp_systolic']
+            
+        if all(row['sugar_level'] is not None for row in last3):
+            sug_rising = last3[2]['sugar_level'] < last3[1]['sugar_level'] < last3[0]['sugar_level']
         if bp_rising or sug_rising:
             trend_type = []
             if bp_rising:  trend_type.append('BP')
@@ -478,6 +785,31 @@ def dashboard():
                            get_overall_risk=get_overall_risk,
                            checkups_last_month=checkups_last_month)
 
+@app.route('/notify_personnel/<int:id>', methods=['POST'])
+@login_required
+def notify_personnel(id):
+    db = get_db()
+    person = db.execute('''
+        SELECT h.bp_systolic, h.bp_diastolic, h.sugar_level, p.first_name, p.email_address
+        FROM health_records h
+        JOIN personnel p ON h.personnel_id = p.id
+        WHERE p.id = ?
+        ORDER BY h.record_date DESC, h.id DESC LIMIT 1
+    ''', (id,)).fetchone()
+    
+    if not person or not person['email_address']:
+        flash('No email address found for this personnel.', 'danger')
+        return redirect(url_for('dashboard'))
+        
+    bp_lvl, _, _ = get_bp_status(person['bp_systolic'], person['bp_diastolic'])
+    sug_lvl, _, _ = get_sugar_status(person['sugar_level'])
+    risk = get_overall_risk(bp_lvl, sug_lvl)
+    
+    trigger_health_alert(person['first_name'], person['email_address'], risk, f"{person['bp_systolic']}/{person['bp_diastolic']}", person['sugar_level'])
+    
+    flash(f"Health alert sent to {person['first_name']}'s email.", 'success')
+    return redirect(url_for('dashboard'))
+
 @app.route('/personnel', methods=['GET', 'POST'])
 @login_required
 def personnel():
@@ -490,11 +822,14 @@ def personnel():
         middle_name = request.form.get('middle_name', '')
         last_name   = request.form.get('last_name', '')
         designation = request.form.get('designation', '')
+        email_address = request.form.get('email_address', '').strip()
+        date_of_birth = request.form.get('date_of_birth', '').strip()
+        gender = request.form.get('gender', '').strip()
         height_cm   = request.form.get('height_cm', '').strip()
         weight_kg   = request.form.get('weight_kg', '').strip()
 
         errors = []
-        for field, val in [('First Name', first_name), ('Last Name', last_name), ('Designation', designation)]:
+        for field, val in [('First Name', first_name), ('Last Name', last_name), ('Designation', designation), ('Email Address', email_address)]:
             if not str(val).strip():
                 errors.append(f"{field} is required.")
             elif re.search(r'[^\x00-\x7FñÑ]', str(val)):
@@ -502,6 +837,22 @@ def personnel():
 
         if middle_name and re.search(r'[^\x00-\x7FñÑ]', str(middle_name)):
             errors.append("Emojis or unsupported characters are not allowed in Middle Name.")
+
+        if email_address and not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email_address):
+            errors.append("Please enter a valid email address.")
+
+        if not date_of_birth:
+            errors.append("Birthdate is required.")
+        else:
+            try:
+                dob = datetime.strptime(date_of_birth, '%Y-%m-%d')
+                if dob > datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8):
+                    errors.append("Birthdate cannot be in the future.")
+            except ValueError:
+                errors.append("Invalid birthdate format. Use YYYY-MM-DD.")
+
+        if not gender or gender not in ('Male', 'Female', 'Other'):
+            errors.append("Please select a valid gender.")
 
         if not height_cm:
             errors.append("Height is required.")
@@ -528,16 +879,18 @@ def personnel():
                 flash(error, 'danger')
             return redirect(url_for('personnel'))
 
+        ph_time = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
         db.execute(
-            'INSERT INTO personnel (first_name, middle_name, last_name, designation, height_cm, weight_kg) VALUES (?, ?, ?, ?, ?, ?)',
-            (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip(), height_cm, weight_kg)
+            'INSERT INTO personnel (first_name, middle_name, last_name, designation, date_of_birth, gender, height_cm, weight_kg, email_address, date_added) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip(), date_of_birth, gender, height_cm, weight_kg, email_address, ph_time)
         )
         db.commit()
+        log_activity('ADD_PERSONNEL', f"Added personnel '{first_name.strip()} {last_name.strip()}'")
         flash('Personnel added successfully!', 'success')
         return redirect(url_for('personnel'))
 
     personnel_list = db.execute('SELECT * FROM personnel ORDER BY last_name').fetchall()
-    return render_template('personnel.html', personnel=personnel_list, get_bmi_status=get_bmi_status)
+    return render_template('personnel.html', personnel=personnel_list, get_bmi_status=get_bmi_status, calculate_age=calculate_age)
 
 @app.route('/edit_personnel/<int:id>', methods=['POST'])
 @admin_required
@@ -547,11 +900,14 @@ def edit_personnel(id):
     middle_name = request.form.get('middle_name', '')
     last_name   = request.form.get('last_name', '')
     designation = request.form.get('designation', '')
+    email_address = request.form.get('email_address', '').strip()
+    date_of_birth = request.form.get('date_of_birth', '').strip()
+    gender = request.form.get('gender', '').strip()
     height_cm   = request.form.get('height_cm', '').strip()
     weight_kg   = request.form.get('weight_kg', '').strip()
 
     errors = []
-    for field, val in [('First Name', first_name), ('Last Name', last_name), ('Designation', designation)]:
+    for field, val in [('First Name', first_name), ('Last Name', last_name), ('Designation', designation), ('Email Address', email_address)]:
         if not str(val).strip():
             errors.append(f"{field} is required.")
         elif re.search(r'[^\x00-\x7FñÑ]', str(val)):
@@ -559,6 +915,22 @@ def edit_personnel(id):
 
     if middle_name and re.search(r'[^\x00-\x7FñÑ]', str(middle_name)):
         errors.append("Emojis or unsupported characters are not allowed in Middle Name.")
+
+    if email_address and not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email_address):
+        errors.append("Please enter a valid email address.")
+
+    if not date_of_birth:
+        errors.append("Birthdate is required.")
+    else:
+        try:
+            dob = datetime.strptime(date_of_birth, '%Y-%m-%d')
+            if dob > datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8):
+                errors.append("Birthdate cannot be in the future.")
+        except ValueError:
+            errors.append("Invalid birthdate format. Use YYYY-MM-DD.")
+
+    if not gender or gender not in ('Male', 'Female', 'Other'):
+        errors.append("Please select a valid gender.")
 
     if not height_cm:
         errors.append("Height is required.")
@@ -586,10 +958,11 @@ def edit_personnel(id):
         return redirect(url_for('personnel'))
 
     db.execute(
-        'UPDATE personnel SET first_name=?, middle_name=?, last_name=?, designation=?, height_cm=?, weight_kg=? WHERE id=?',
-        (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip(), height_cm, weight_kg, id)
+        'UPDATE personnel SET first_name=?, middle_name=?, last_name=?, designation=?, date_of_birth=?, gender=?, height_cm=?, weight_kg=?, email_address=? WHERE id=?',
+        (first_name.strip(), middle_name.strip(), last_name.strip(), designation.strip(), date_of_birth, gender, height_cm, weight_kg, email_address, id)
     )
     db.commit()
+    log_activity('EDIT_PERSONNEL', f"Updated personnel '{first_name.strip()} {last_name.strip()}'")
     flash('Personnel updated successfully!', 'success')
     return redirect(url_for('personnel'))
 
@@ -597,9 +970,22 @@ def edit_personnel(id):
 @admin_required
 def delete_personnel(id):
     db = get_db()
+    
+    # 1. Fetch all associated photos and delete them from disk to prevent storage leaks
+    records = db.execute('SELECT evidence_photo FROM health_records WHERE personnel_id = ? AND evidence_photo != ""', (id,)).fetchall()
+    for record in records:
+        if record['evidence_photo']:
+            photo_path = os.path.join(app.config['UPLOAD_FOLDER'], record['evidence_photo'])
+            if os.path.exists(photo_path):
+                os.remove(photo_path)
+                
+    # 2. Delete the database records
+    person = db.execute('SELECT first_name, last_name FROM personnel WHERE id = ?', (id,)).fetchone()
+    p_name = f"{person['first_name']} {person['last_name']}" if person else f"ID {id}"
     db.execute('DELETE FROM health_records WHERE personnel_id = ?', (id,))
     db.execute('DELETE FROM personnel WHERE id = ?', (id,))
     db.commit()
+    log_activity('DELETE_PERSONNEL', f"Deleted personnel '{p_name}' and their records")
     flash('Personnel and all associated health records deleted successfully.', 'success')
     return redirect(url_for('personnel'))
 
@@ -640,6 +1026,17 @@ def add_record():
     notes        = request.form.get('notes', '')
 
     errors = []
+    if not personnel_id:
+        errors.append('Please select personnel.')
+    else:
+        try:
+            personnel_id = int(personnel_id)
+            person_exists = db.execute('SELECT id FROM personnel WHERE id = ?', (personnel_id,)).fetchone()
+            if not person_exists:
+                errors.append('Selected personnel does not exist in the system.')
+        except ValueError:
+            errors.append('Invalid personnel ID.')
+
     required_fields = [
         ('Personnel',   personnel_id),
         ('Date',        record_date),
@@ -651,6 +1048,24 @@ def add_record():
         if not val or not str(val).strip():
             errors.append(f"{field_name} is required.")
 
+    if record_date:
+        try:
+            rd = datetime.strptime(record_date, '%Y-%m-%d')
+            if rd > datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8):
+                errors.append("Record date cannot be in the future.")
+        except ValueError:
+            errors.append("Invalid record date format. Use YYYY-MM-DD.")
+
+    if not errors:
+        try:
+            sys_val = int(bp_systolic)
+            dia_val = int(bp_diastolic)
+            sug_val = float(sugar_level)
+            if sys_val <= 0 or dia_val <= 0 or sug_val <= 0:
+                errors.append("Health metrics must be positive numbers.")
+        except (TypeError, ValueError):
+            errors.append("Blood pressure and sugar levels must be valid numbers.")
+
     if notes and re.search(r'[^\x00-\x7FñÑ]', str(notes)):
         errors.append("Emojis or unsupported characters are not allowed in Notes.")
 
@@ -661,17 +1076,32 @@ def add_record():
 
     evidence_photo = request.files.get('evidence_photo')
     evidence_filename = ''
-    if evidence_photo and allowed_file(evidence_photo.filename):
-        filename = secure_filename(evidence_photo.filename)
-        unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-        evidence_photo.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
-        evidence_filename = unique_filename
+    if evidence_photo and evidence_photo.filename:
+        if allowed_file(evidence_photo.filename):
+            filename = secure_filename(evidence_photo.filename)
+            unique_filename = f"{(datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)).strftime('%Y%m%d%H%M%S')}_{filename}"
+            evidence_photo.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+            evidence_filename = unique_filename
+        else:
+            flash('Invalid file type for evidence photo. Only PNG, JPG, and JPEG are allowed. Photo was ignored.', 'warning')
 
+    ph_time = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
     db.execute('''
-        INSERT INTO health_records (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes, evidence_photo)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), evidence_filename))
+        INSERT INTO health_records (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes, evidence_photo, date_added)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (personnel_id, record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), evidence_filename, ph_time))
     db.commit()
+    log_activity('ADD_RECORD', f"Added health record for personnel ID {personnel_id}")
+
+    # Trigger Email Alert if risk is high
+    person = db.execute('SELECT first_name, email_address FROM personnel WHERE id = ?', (personnel_id,)).fetchone()
+    if person and person['email_address']:
+        bp_lvl, _, _ = get_bp_status(bp_systolic, bp_diastolic)
+        sug_lvl, _, _ = get_sugar_status(sugar_level)
+        risk = get_overall_risk(bp_lvl, sug_lvl)
+        if risk in ('danger', 'critical'):
+            trigger_health_alert(person['first_name'], person['email_address'], risk, f"{bp_systolic}/{bp_diastolic}", sugar_level)
+
     flash('Health record added successfully!', 'success')
     return redirect(url_for('records'))
 
@@ -697,6 +1127,24 @@ def edit_record(id):
     for field_name, val in required_fields:
         if not val or not str(val).strip():
             errors.append(f"{field_name} is required.")
+
+    if record_date:
+        try:
+            rd = datetime.strptime(record_date, '%Y-%m-%d')
+            if rd > datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8):
+                errors.append("Record date cannot be in the future.")
+        except ValueError:
+            errors.append("Invalid record date format. Use YYYY-MM-DD.")
+            
+    if not errors:
+        try:
+            sys_val = int(bp_systolic)
+            dia_val = int(bp_diastolic)
+            sug_val = float(sugar_level)
+            if sys_val <= 0 or dia_val <= 0 or sug_val <= 0:
+                errors.append("Health metrics must be positive numbers.")
+        except (TypeError, ValueError):
+            errors.append("Blood pressure and sugar levels must be valid numbers.")
             
     if notes and re.search(r'[^\x00-\x7FñÑ]', str(notes)):
         errors.append("Emojis or unsupported characters are not allowed in Notes.")
@@ -710,24 +1158,27 @@ def edit_record(id):
     delete_photo_flag = request.form.get('delete_photo') == '1'
     evidence_photo_file = request.files.get('evidence_photo')
     
-    # Get current record to check for existing photo
-    record = db.execute('SELECT evidence_photo FROM health_records WHERE id = ?', (id,)).fetchone()
+    # Get current record to check for existing photo and get personnel_id
+    record = db.execute('SELECT personnel_id, evidence_photo FROM health_records WHERE id = ?', (id,)).fetchone()
     current_photo = record['evidence_photo'] if record else ''
     new_photo_value = current_photo
 
-    if evidence_photo_file and allowed_file(evidence_photo_file.filename):
-        # 1. User uploaded a NEW photo
-        # Delete old file if it exists
-        if current_photo:
-            old_path = os.path.join(app.config['UPLOAD_FOLDER'], current_photo)
-            if os.path.exists(old_path):
-                os.remove(old_path)
-        
-        # Save new file
-        filename = secure_filename(evidence_photo_file.filename)
-        unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-        evidence_photo_file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
-        new_photo_value = unique_filename
+    if evidence_photo_file and evidence_photo_file.filename:
+        if allowed_file(evidence_photo_file.filename):
+            # 1. User uploaded a NEW photo
+            # Delete old file if it exists
+            if current_photo:
+                old_path = os.path.join(app.config['UPLOAD_FOLDER'], current_photo)
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            
+            # Save new file
+            filename = secure_filename(evidence_photo_file.filename)
+            unique_filename = f"{(datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)).strftime('%Y%m%d%H%M%S')}_{filename}"
+            evidence_photo_file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+            new_photo_value = unique_filename
+        else:
+            flash('Invalid file type for evidence photo. Only PNG, JPG, and JPEG are allowed. Existing photo was kept.', 'warning')
     elif delete_photo_flag:
         # 2. User marked photo for deletion and didn't upload a new one
         if current_photo:
@@ -744,6 +1195,19 @@ def edit_record(id):
     ''', (record_date, bp_systolic, bp_diastolic, sugar_level, notes.strip(), new_photo_value, id))
     
     db.commit()
+    
+    # Trigger Email Alert if edited risk is high
+    if record:
+        personnel_id = record['personnel_id']
+        person = db.execute('SELECT first_name, email_address FROM personnel WHERE id = ?', (personnel_id,)).fetchone()
+        if person and person['email_address']:
+            bp_lvl, _, _ = get_bp_status(bp_systolic, bp_diastolic)
+            sug_lvl, _, _ = get_sugar_status(sugar_level)
+            risk = get_overall_risk(bp_lvl, sug_lvl)
+            if risk in ('danger', 'critical'):
+                trigger_health_alert(person['first_name'], person['email_address'], risk, f"{bp_systolic}/{bp_diastolic}", sugar_level)
+
+    log_activity('EDIT_RECORD', f"Updated health record ID {id}")
     flash('Health record updated successfully!', 'success')
     return redirect(url_for('records'))
 
@@ -759,6 +1223,7 @@ def delete_record(id):
             os.remove(photo_path)
     db.execute('DELETE FROM health_records WHERE id = ?', (id,))
     db.commit()
+    log_activity('DELETE_RECORD', f"Deleted health record ID {id}")
     flash('Health record deleted successfully.', 'success')
     return redirect(url_for('records'))
 
@@ -803,6 +1268,34 @@ def export_excel():
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Health Records')
+        
+        # Format the Excel sheet
+        worksheet = writer.sheets['Health Records']
+        
+        from openpyxl.styles import PatternFill, Font, Alignment
+        
+        # 1. Style the header row (DENR Green background, White text)
+        header_fill = PatternFill(start_color='2E7D32', end_color='2E7D32', fill_type='solid')
+        header_font = Font(color='FFFFFF', bold=True)
+        
+        for cell in worksheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+        # 2. Auto-adjust column widths
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            # Set width to max length + 3 for padding
+            worksheet.column_dimensions[column_letter].width = max_length + 3
+            
     output.seek(0)
     
     return send_file(output, as_attachment=True, download_name=f'CENRO_Don_Carlos_Health_Records_{report_type}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -935,4 +1428,7 @@ def export_pdf():
     return send_file(buffer, as_attachment=False, download_name=f'CENRO_Don_Carlos_Health_Report_{report_type}.pdf', mimetype='application/pdf')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80, debug=True)
+    # Use environment variables for safe production deployment
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    port = int(os.environ.get('PORT', 80))
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)

@@ -44,13 +44,14 @@
         <table class="table" id="personnelTable" style="table-layout: fixed; width: 100%;">
             <thead>
                 <tr>
-                    <th onclick="sortTable(0)" style="cursor: pointer; transition: color 0.2s; width: 28%; min-width: 160px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                    <th onclick="sortTable(0)" style="cursor: pointer; transition: color 0.2s; width: 23%; min-width: 140px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
                         Name <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </th>
-                    <th onclick="sortTable(1)" style="cursor: pointer; transition: color 0.2s; width: 27%; min-width: 140px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
+                    <th onclick="sortTable(1)" style="cursor: pointer; transition: color 0.2s; width: 25%; min-width: 150px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
                         Designation <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </th>
-                    <th style="width: 22%; min-width: 150px;">BMI</th>
+                    <th style="width: 15%; min-width: 110px;">Age/Gender</th>
+                    <th style="width: 20%; min-width: 150px;">BMI</th>
                     <th onclick="sortTable(3)" style="cursor: pointer; transition: color 0.2s; width: 13%; min-width: 120px;" onmouseover="this.style.color='var(--denr-green)'" onmouseout="this.style.color=''">
                         Date Added <i class="fa-solid fa-sort" style="margin-left: 5px; color: var(--text-muted); font-size: 0.8rem;"></i>
                     </th>
@@ -65,6 +66,7 @@
                 <tr>
                     <td style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><strong>{{ p.last_name }}, {{ p.first_name }} {{ p.middle_name[:1].upper() ~ '.' if p.middle_name else '' }}</strong></td>
                     <td style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.designation }}</td>
+                    <td>{{ calculate_age(p.date_of_birth) }} / {{ p.gender if p.gender else '—' }}</td>
                     <td>
                         {% if bmi_val %}
                         <span class="badge badge-{{ bmi_lvl }}" title="Height: {{ p.height_cm }}cm | Weight: {{ p.weight_kg }}kg">
@@ -148,6 +150,24 @@
                     <label class="form-label">Designation / Role <span style="color: var(--danger);">*</span></label>
                     <input type="text" name="designation" class="form-control" value="{{ p.designation }}" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Birthdate <span style="color: var(--danger);">*</span></label>
+                        <input type="date" name="date_of_birth" class="form-control" value="{{ p.date_of_birth if p.date_of_birth else '' }}" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Gender <span style="color: var(--danger);">*</span></label>
+                        <select name="gender" class="form-control" required>
+                            <option value="Male" {% if p.gender == 'Male' %}selected{% endif %}>Male</option>
+                            <option value="Female" {% if p.gender == 'Female' %}selected{% endif %}>Female</option>
+                            <option value="Other" {% if p.gender == 'Other' %}selected{% endif %}>Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address <span style="color: red;">*</span></label>
+                    <input type="email" name="email_address" class="form-control" value="{{ p.email_address if p.email_address else '' }}" placeholder="e.g. juan@example.com" required>
+                </div>
 
                 <!-- BMI Section -->
                 <label class="form-label">Body Measurements (for BMI) <span style="color: var(--danger);">*</span></label>
@@ -179,7 +199,7 @@
                 </div>
                 <div style="display: flex; gap: 12px; margin-top: 8px;">
                     <button type="submit" class="btn btn-primary" style="flex: 2;">Save Changes</button>
-                    <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="document.getElementById('editPersonnelModal{{ p.id }}').classList.remove('show')">Cancel</button>
+                    <button type="button" class="btn btn-cancel" style="flex: 1;" onclick="document.getElementById('editPersonnelModal{{ p.id }}').classList.remove('show')">Cancel</button>
                 </div>
             </form>
             <form action="{{ url_for('delete_personnel', id=p.id) }}" method="POST" data-name="{{ p.first_name }} {{ p.last_name }}" onsubmit="confirmDelete(event, this, 'Are you sure you want to completely delete ' + this.getAttribute('data-name') + '? This will also delete ALL of their health records. This action cannot be undone.');" style="margin-top: 12px;">
@@ -218,6 +238,25 @@
                     <label class="form-label">Designation / Role <span style="color: var(--danger);">*</span></label>
                     <input type="text" name="designation" class="form-control" placeholder="e.g. Forest Ranger" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,\'-ñÑ]/g, '')">
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Birthdate <span style="color: var(--danger);">*</span></label>
+                        <input type="date" name="date_of_birth" class="form-control" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Gender <span style="color: var(--danger);">*</span></label>
+                        <select name="gender" class="form-control" required>
+                            <option value="" disabled selected>Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address <span style="color: red;">*</span></label>
+                    <input type="email" name="email_address" class="form-control" placeholder="e.g. juan@example.com" required>
+                </div>
 
                 <!-- BMI Section -->
                 <label class="form-label">Body Measurements (for BMI) <span style="color: var(--danger);">*</span></label>
@@ -249,7 +288,7 @@
                     <button type="submit" class="btn btn-primary" style="flex: 2;">
                         <i class="fa-solid fa-save"></i> Save Personnel
                     </button>
-                    <button type="button" class="btn" style="flex: 1; background-color: #E0E6E1; color: var(--text-main);" onclick="closeAddPersonnelModal()">Cancel</button>
+                    <button type="button" class="btn btn-cancel" style="flex: 1;" onclick="closeAddPersonnelModal()">Cancel</button>
                 </div>
             </form>
         </div>
